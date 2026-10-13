@@ -1,0 +1,22 @@
+/** MediaPipe Pose landmark indices for the points the engine uses. */
+export const POINTS = {
+  nose: 0,
+  leftShoulder: 11,
+  rightShoulder: 12,
+  leftElbow: 13,
+  rightElbow: 14,
+  leftWrist: 15,
+  rightWrist: 16,
+  leftHip: 23,
+  rightHip: 24,
+  leftKnee: 25,
+  rightKnee: 26,
+  leftAnkle: 27,
+  rightAnkle: 28,
+} as const;
+
+export type PointName = keyof typeof POINTS;
+
+export type Side = 'left' | 'right';
+
+export const SIDES: readonly Side[] = ['left', 'right'];
