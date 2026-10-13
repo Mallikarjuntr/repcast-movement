@@ -10,6 +10,8 @@ export interface FigureOptions {
   kneeWidthRatio?: number;
   /** Hide the ankles, as when the feet are cut off at the bottom of the frame. */
   hideAnkles?: boolean;
+  /** Arms raised sideways from the body, in degrees (0 = arms down, 180 = straight up). Omit to hide the arms. */
+  armRaise?: number;
 }
 
 const SHIN = 0.2;
@@ -39,7 +41,13 @@ export function figure(t: number, opts: FigureOptions): PoseFrame {
     set(`${side}Ankle`, ankleX, 0.9, 0, opts.hideAnkles ? 0.1 : 0.99);
     set(`${side}Knee`, kneeX, kneeY, 0);
     set(`${side}Hip`, 0.5 + sign * 0.06, hipY, hipZ);
-    set(`${side}Shoulder`, 0.5 + sign * 0.1, hipY - TORSO * Math.cos(lean), hipZ - TORSO * Math.sin(lean));
+    const shoulderX = 0.5 + sign * 0.1;
+    const shoulderY = hipY - TORSO * Math.cos(lean);
+    set(`${side}Shoulder`, shoulderX, shoulderY, hipZ - TORSO * Math.sin(lean));
+    if (opts.armRaise !== undefined) {
+      const raise = opts.armRaise * DEG;
+      set(`${side}Elbow`, shoulderX + sign * 0.15 * Math.sin(raise), shoulderY + 0.15 * Math.cos(raise), hipZ - TORSO * Math.sin(lean));
+    }
   }
 
   // World landmarks share the geometry so 3D joint angles are exact.

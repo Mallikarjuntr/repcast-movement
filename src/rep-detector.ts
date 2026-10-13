@@ -1,18 +1,13 @@
 import { CHECKS, type CheckId } from './checks.js';
-import type { JointName, RepExercise } from './definitions.js';
-import { DEFAULT_MIN_VISIBILITY, imagePoint, isVisible, jointAngle } from './geometry.js';
-import { SIDES, type PointName, type Side } from './landmarks.js';
+import type { RepExercise } from './definitions.js';
+import { DEFAULT_MIN_VISIBILITY, imagePoint, isVisible } from './geometry.js';
+import { SIDES, type PointName } from './landmarks.js';
+import { jointAngles, pick } from './measures.js';
 import type { PoseFrame } from './types.js';
 
 /** Per-frame decay of the standing thigh reference, so it adapts if the person moves nearer or farther. */
 const THIGH_REFERENCE_DECAY = 0.9995;
 const RAD_TO_DEG = 180 / Math.PI;
-
-const JOINT_POINTS: Record<JointName, Record<Side, [PointName, PointName, PointName]>> = {
-  knee: { left: ['leftHip', 'leftKnee', 'leftAnkle'], right: ['rightHip', 'rightKnee', 'rightAnkle'] },
-  hip: { left: ['leftShoulder', 'leftHip', 'leftKnee'], right: ['rightShoulder', 'rightHip', 'rightKnee'] },
-  elbow: { left: ['leftShoulder', 'leftElbow', 'leftWrist'], right: ['rightShoulder', 'rightElbow', 'rightWrist'] },
-};
 
 /** `waiting`: not yet seen standing tall. `top`: between reps. `down`: inside a rep. */
 export type RepPhase = 'waiting' | 'top' | 'down';
@@ -156,14 +151,12 @@ export class RepDetector {
   }
 
   private measure(frame: PoseFrame): { value: number; fallback: boolean } | null {
-    const { joint, fallback } = this.exercise.metric;
+    const { joint, fallback, invert } = this.exercise.metric;
     const thighDrop = fallback === 'thigh-drop' ? this.trackThighDrop(frame) : null;
 
-    const angles = SIDES.map((side) => JOINT_POINTS[joint][side])
-      .filter((pts) => pts.every((p) => isVisible(frame, p, this.minVisibility)))
-      .map(([a, b, c]) => jointAngle(frame, a, b, c));
-    if (angles.length > 0) {
-      return { value: average(angles), fallback: false };
+    const angle = pick(jointAngles(frame, joint, this.minVisibility), this.exercise.metric.pick);
+    if (angle !== null) {
+      return { value: invert ? 180 - angle : angle, fallback: false };
     }
 
     if (thighDrop !== null && this.thighReference > 0) {
@@ -179,13 +172,10 @@ export class RepDetector {
   private trackThighDrop(frame: PoseFrame): number | null {
     const drops = SIDES.filter((s) => isVisible(frame, `${s}Hip`, this.minVisibility) && isVisible(frame, `${s}Knee`, this.minVisibility))
       .map((s) => imagePoint(frame, `${s}Knee`).y - imagePoint(frame, `${s}Hip`).y);
-    if (drops.length === 0) return null;
-    const drop = Math.max(0, average(drops));
+    const mean = pick(drops);
+    if (mean === null) return null;
+    const drop = Math.max(0, mean);
     this.thighReference = Math.max(drop, this.thighReference * THIGH_REFERENCE_DECAY);
     return drop;
   }
-}
-
-function average(values: number[]): number {
-  return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
