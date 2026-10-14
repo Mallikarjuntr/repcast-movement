@@ -80,6 +80,8 @@ interface Anchor {
   hips: Point | null;
   legLength: number;
   shoulderWidth: number;
+  /** Shoulder-centre to hip-centre length in the image: the ruler for stance. */
+  torso: number;
 }
 
 export class RepDetector {
@@ -198,7 +200,7 @@ export class RepDetector {
       case 'down':
         this.trackDrift(frame);
         if (metric < bottom) {
-          const seen = stance(frame, this.minVisibility);
+          const seen = stance(frame, this.minVisibility, this.start?.torso ?? 0);
           if (seen) this.stanceVotes[seen] += 1;
         }
         if (metric < this.lowest) {
@@ -296,12 +298,14 @@ export class RepDetector {
     const ls = seen('leftShoulder');
     const rs = seen('rightShoulder');
     const hips = lh && rh ? midpoint(lh, rh) : (lh ?? rh);
+    const shoulders = ls && rs ? midpoint(ls, rs) : null;
     const legs = [lh && la ? distance2d(lh, la) : 0, rh && ra ? distance2d(rh, ra) : 0].filter((d) => d > 0);
     return {
       feet: [la, ra],
       hips,
       legLength: legs.length ? legs.reduce((a, b) => a + b, 0) / legs.length : 0,
       shoulderWidth: ls && rs ? distance2d(ls, rs) : 0,
+      torso: shoulders && lh && rh ? distance2d(shoulders, midpoint(lh, rh)) : 0,
     };
   }
 
@@ -319,6 +323,7 @@ export class RepDetector {
       hips: med(anchors.map((a) => a.hips)),
       legLength: num(anchors.map((a) => a.legLength)),
       shoulderWidth: num(anchors.map((a) => a.shoulderWidth)),
+      torso: num(anchors.map((a) => a.torso)),
     };
   }
 
