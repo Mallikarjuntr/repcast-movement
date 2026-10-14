@@ -251,7 +251,7 @@ export class RepDetector {
     const { depth, stance: stanceRule } = this.exercise;
     const frame = this.lowestFrame;
 
-    if (this.cameraMoved()) noRep.push('The camera moved — keep the phone still');
+    if (this.exercise.plantedFeet !== false && this.cameraMoved()) noRep.push('The camera moved — keep the phone still');
     if (!endedStanding) noRep.push('Finish each rep standing tall');
 
     const votes = this.stanceVotes.square + this.stanceVotes.staggered;

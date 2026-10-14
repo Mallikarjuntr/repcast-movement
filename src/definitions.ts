@@ -53,6 +53,11 @@ export interface RepExercise {
    * before a rep can start. Stops people lying down, sitting or random movement from counting.
    */
   upright?: { maxTilt: number };
+  /**
+   * Feet stay planted during a rep (default true). When planted, both feet moving means the camera
+   * or person moved, so the rep doesn't count. Set false for stepping moves like forward lunges.
+   */
+  plantedFeet?: boolean;
   /** Foot stance expected at the bottom: feet side by side (squat) or one forward (lunge). */
   stance?: { expect: 'square' | 'staggered'; cue: string };
   checks?: CheckConfig[];

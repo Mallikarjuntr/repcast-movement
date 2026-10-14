@@ -18,6 +18,7 @@ export const lunge: RepExercise = {
   minRepMs: 700,
   maxRepMs: 8000,
   upright: { maxTilt: 30 },
+  plantedFeet: false,
   stance: { expect: 'staggered', cue: 'Step one foot forward — that was a squat, this set is lunges' },
   checks: [{ id: 'chest-dropping', cue: 'Keep your chest tall', warn: 40, fail: 60, failCue: "Leaned too far forward — that one doesn't count" }],
   required: ['leftHip', 'rightHip', 'leftKnee', 'rightKnee'],

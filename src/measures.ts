@@ -61,8 +61,11 @@ export function stance(frame: PoseFrame, minVisibility: number, standingTorso: n
   return isSideOn(frame, minVisibility) === false ? 'square' : null;
 }
 
-/** Shoulder width over torso length below which the camera sees the person side-on. */
-export const SIDE_ON_RATIO = 0.35;
+/**
+ * Shoulder width over torso length below which the camera sees the person side-on. Facing the camera
+ * is about 0.8–1.0; the recommended 45° placement about 0.55–0.65; side-on 0.1–0.3.
+ */
+export const SIDE_ON_RATIO = 0.45;
 
 /**
  * True when the camera sees the person from the side, so one leg hides the other; null when the
