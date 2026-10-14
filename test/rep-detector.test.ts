@@ -50,6 +50,19 @@ describe('RepDetector with the squat definition', () => {
     expect(detector.count).toBe(0);
   });
 
+  it("learns a person's own standing posture when their knees never fully straighten", () => {
+    const soft: PoseFrame[] = Array.from({ length: 15 }, (_, i) => figure(i * 40, { knee: 154 }));
+    for (const [n, start] of [[1, 600], [2, 2400], [3, 4200]] as const) {
+      for (let i = 0; i <= 40; i++) {
+        const d = i <= 20 ? i / 20 : (40 - i) / 20;
+        soft.push(figure(start + i * 40, { knee: 154 - (154 - 70) * d }));
+      }
+      void n;
+    }
+    const { detector } = run(soft);
+    expect(detector.count).toBe(3);
+  });
+
   it('ignores small wobbles near standing', () => {
     expect(run(motion([175, 150, 172, 148, 175])).reps).toHaveLength(0);
   });

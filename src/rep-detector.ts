@@ -14,6 +14,15 @@ const MAX_FOOT_DRIFT = 0.3;
 const MAX_HIP_DRIFT = 0.8;
 /** Apparent body size change during one rep (zoom, walking towards the phone). */
 const MAX_SCALE_CHANGE = 1.35;
+/**
+ * People stand with different knee straightness (and the lite pose model under-reads straight legs),
+ * so "back at the top" is set this far below the person's own standing angle.
+ */
+const STANDING_MARGIN = 8;
+/** How fast the learned standing angle relaxes per frame, so it follows the person rather than one spike. */
+const STANDING_DECAY = 0.02;
+/** Keep at least this gap between the top and bottom lines, so wobbles never count. */
+const MIN_HYSTERESIS = 12;
 
 /** `waiting`: not yet seen standing tall. `top`: between reps. `down`: inside a rep. */
 export type RepPhase = 'waiting' | 'top' | 'down';
@@ -84,6 +93,8 @@ export class RepDetector {
   private scaleChange = 1;
   /** Tallest recent hip-to-knee vertical drop in the image, i.e. the thigh while standing. */
   private thighReference = 0;
+  /** The person's own standing angle, learned while they're upright. */
+  private standingAngle: number | null = null;
   private readonly smoothing: number;
   private readonly minVisibility: number;
 
@@ -109,6 +120,14 @@ export class RepDetector {
     this.lastTopFrame = null;
     this.start = null;
     this.thighReference = 0;
+    this.standingAngle = null;
+  }
+
+  /** The angle that counts as standing tall again for this person. */
+  private topLine(): number {
+    const { top, bottom } = this.exercise.thresholds;
+    if (this.standingAngle === null) return top;
+    return Math.max(bottom + MIN_HYSTERESIS, Math.min(top, this.standingAngle - STANDING_MARGIN));
   }
 
   update(frame: PoseFrame): RepUpdate {
@@ -121,9 +140,14 @@ export class RepDetector {
 
     this.smoothed = this.smoothed === null ? measured.value : this.smoothed + this.smoothing * (measured.value - this.smoothed);
     const metric = this.smoothed;
-    const { top, bottom } = this.exercise.thresholds;
+    const upright = this.isStanding(frame);
+    if (upright && this.phase !== 'down') {
+      this.standingAngle = this.standingAngle === null ? metric : Math.max(metric, this.standingAngle - STANDING_DECAY);
+    }
+    const top = this.topLine();
+    const { bottom } = this.exercise.thresholds;
     // Reps may only start from a standing position, so lying down or random movement never counts.
-    const standing = metric >= top && this.isStanding(frame);
+    const standing = metric >= top && upright;
     let rep: RepResult | undefined;
 
     switch (this.phase) {
