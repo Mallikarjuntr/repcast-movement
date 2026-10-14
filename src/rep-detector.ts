@@ -21,6 +21,8 @@ const STANDING_MARGIN = 10;
 const STANDING_WINDOW = 90;
 /** Standing frames averaged for the feet's starting position, so one jittery frame can't skew it. */
 const ANCHOR_FRAMES = 8;
+/** After the legs straighten, how long the torso may take to come upright before the rep is judged. */
+const FINISH_GRACE_MS = 1200;
 /** A fraction of bottom frames that must look staggered before a rep is called a lunge. */
 const STAGGERED_VOTE = 0.6;
 /** Keep at least this gap between the top and bottom lines, so wobbles never count. */
@@ -96,6 +98,8 @@ export class RepDetector {
   private drifts: number[] = [];
   /** Stance seen on each bottom frame of the current rep. */
   private stanceVotes = { square: 0, staggered: 0 };
+  /** When the legs got back above the top line during this rep (waiting for the torso to follow). */
+  private legsUpAt: number | null = null;
   /** Tallest recent hip-to-knee vertical drop in the image, i.e. the thigh while standing. */
   private thighReference = 0;
   /** Recent upright metric values; the person's standing angle is a high percentile of these. */
@@ -188,6 +192,7 @@ export class RepDetector {
           this.start = this.steadyAnchor();
           this.drifts = [];
           this.stanceVotes = { square: 0, staggered: 0 };
+          this.legsUpAt = null;
         }
         break;
       case 'down':
@@ -200,12 +205,18 @@ export class RepDetector {
           this.lowest = metric;
           this.lowestFrame = frame;
         }
-        if (metric >= top) {
+        if (metric < top) {
+          this.legsUpAt = null;
+          break;
+        }
+        // Legs are straight; the torso often comes upright a moment later.
+        this.legsUpAt ??= frame.t;
+        if (upright || frame.t - this.legsUpAt > FINISH_GRACE_MS) {
           const durationMs = frame.t - this.repStart;
           const tooFast = durationMs < (this.exercise.minRepMs ?? 0);
           const tooSlow = durationMs > (this.exercise.maxRepMs ?? Infinity);
-          if (!tooFast && !tooSlow) rep = this.judgeRep(durationMs, this.isStanding(frame));
-          if (this.isStanding(frame)) {
+          if (!tooFast && !tooSlow) rep = this.judgeRep(durationMs, upright);
+          if (upright) {
             this.markTop(frame);
           } else {
             this.phase = 'waiting';
