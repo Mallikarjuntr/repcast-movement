@@ -55,7 +55,29 @@ export const STAGGERED_KNEE_GAP = 0.55;
 export function stance(frame: PoseFrame, minVisibility: number, standingTorso: number): 'square' | 'staggered' | null {
   if (standingTorso <= 0 || !isVisible(frame, 'leftKnee', minVisibility) || !isVisible(frame, 'rightKnee', minVisibility)) return null;
   const gap = Math.abs(frame.landmarks[POINT_INDEX.leftKnee]!.y - frame.landmarks[POINT_INDEX.rightKnee]!.y);
-  return gap / standingTorso > STAGGERED_KNEE_GAP ? 'staggered' : 'square';
+  // A big gap is reliable from any angle. A small one only means "square" when both legs can be
+  // seen: from the side the pose model often stacks the hidden leg on the visible one.
+  if (gap / standingTorso > STAGGERED_KNEE_GAP) return 'staggered';
+  return isSideOn(frame, minVisibility) === false ? 'square' : null;
+}
+
+/** Shoulder width over torso length below which the camera sees the person side-on. */
+export const SIDE_ON_RATIO = 0.35;
+
+/**
+ * True when the camera sees the person from the side, so one leg hides the other; null when the
+ * shoulders and hips aren't visible enough to tell.
+ */
+export function isSideOn(frame: PoseFrame, minVisibility: number): boolean | null {
+  const names: PointName[] = ['leftShoulder', 'rightShoulder', 'leftHip', 'rightHip'];
+  if (!names.every((n) => isVisible(frame, n, minVisibility))) return null;
+  const p = (n: PointName) => frame.landmarks[POINT_INDEX[n]]!;
+  const aspect = frame.aspect ?? 1;
+  const shoulderWidth = Math.hypot((p('leftShoulder').x - p('rightShoulder').x) * aspect, p('leftShoulder').y - p('rightShoulder').y);
+  const midX = (a: PointName, b: PointName) => ((p(a).x + p(b).x) / 2) * aspect;
+  const midY = (a: PointName, b: PointName) => (p(a).y + p(b).y) / 2;
+  const torso = Math.hypot(midX('leftShoulder', 'rightShoulder') - midX('leftHip', 'rightHip'), midY('leftShoulder', 'rightShoulder') - midY('leftHip', 'rightHip'));
+  return torso > 0 ? shoulderWidth / torso < SIDE_ON_RATIO : null;
 }
 
 function avg(a: number | null, b: number | null): number | null {

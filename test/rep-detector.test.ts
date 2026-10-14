@@ -21,6 +21,13 @@ function squatRep(bottom: number, startT: number, atDepth: (d: number) => Omit<F
   return frames;
 }
 
+/** Squeeze the shoulders together, as seen from the side. */
+function narrow(frame: PoseFrame): PoseFrame {
+  const squeeze = (list: PoseFrame['landmarks']) =>
+    list.map((p, i) => (i === 11 || i === 12 ? { ...p, x: 0.5 + (p.x - 0.5) * 0.15 } : p));
+  return { ...frame, landmarks: squeeze(frame.landmarks) };
+}
+
 function stand(startT: number, n = 10): PoseFrame[] {
   return Array.from({ length: n }, (_, i) => figure(startT + i * 40, { knee: 175 }));
 }
@@ -137,6 +144,13 @@ describe('the honest spotter: things that must not count', () => {
     const { reps, detector } = run([...stand(0), ...squatRep(80, 400, (d) => ({ lungeGap: 1.1 * d }))]);
     expect(detector.count).toBe(0);
     expect(reps[0]!.cues[0]).toMatch(/lunge/i);
+  });
+
+  it("doesn't guess the stance when filmed side-on with the legs stacked", () => {
+    // Side view: shoulders overlap (narrow), knees at the same height because one leg hides the other.
+    const { reps, detector } = run([...stand(0).map((f) => narrow(f)), ...squatRep(65, 400).map((f) => narrow(f))]);
+    expect(detector.count).toBe(1);
+    expect(reps[0]!.cues).not.toContainEqual(expect.stringMatching(/lunge/i));
   });
 
   it('ignores a "rep" that takes far too long', () => {
