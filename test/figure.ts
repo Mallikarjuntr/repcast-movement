@@ -12,6 +12,12 @@ export interface FigureOptions {
   hideAnkles?: boolean;
   /** Arms raised sideways from the body, in degrees (0 = arms down, 180 = straight up). Omit to hide the arms. */
   armRaise?: number;
+  /** Lunge stance: drop the right knee by this fraction of thigh length (back knee towards the floor). */
+  lungeGap?: number;
+  /** Camera shake: shift the whole image up/down by this much (world points unaffected). */
+  shiftY?: number;
+  /** Person lying on their side: rotate the whole body 90°. */
+  lying?: boolean;
 }
 
 const SHIN = 0.2;
@@ -50,8 +56,22 @@ export function figure(t: number, opts: FigureOptions): PoseFrame {
     }
   }
 
+  if (opts.lungeGap) {
+    for (const name of ['rightKnee', 'rightAnkle'] as const) {
+      const p = landmarks[POINTS[name]]!;
+      landmarks[POINTS[name]] = { ...p, y: p.y + opts.lungeGap * THIGH };
+    }
+  }
+  if (opts.lying) {
+    for (let i = 0; i < landmarks.length; i++) {
+      const p = landmarks[i]!;
+      landmarks[i] = { ...p, x: 0.5 + (p.y - 0.5), y: 0.5 - (p.x - 0.5) };
+    }
+  }
   // World landmarks share the geometry so 3D joint angles are exact.
-  return { t, landmarks, world: landmarks.map((p) => ({ ...p })) };
+  const world = landmarks.map((p) => ({ ...p }));
+  const image = opts.shiftY ? landmarks.map((p) => ({ ...p, y: p.y + opts.shiftY! })) : landmarks;
+  return { t, landmarks: image, world };
 }
 
 /** Frames every 33 ms that move the knee angle through the given waypoints. */

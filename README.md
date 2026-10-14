@@ -11,6 +11,18 @@ Every exercise is built from two primitives:
 
 Exercises are **plain data**, so adding a new one needs no new code.
 
+### An honest spotter
+
+Every rep attempt gets a verdict instead of a blind count:
+
+| Verdict | Meaning |
+|---|---|
+| `good` | Deep enough, clean form — counts |
+| `fix` | Counts, with a correction (slightly shallow, mild fault) |
+| `no-rep` | Doesn't count, with the reason: not deep enough, big form break, wrong exercise (a lunge in a squat set), not standing upright, or the camera moved |
+
+Built-in gates stop false reps: reps only start from an upright standing position, both feet must stay planted (otherwise the phone or person moved), and attempts that are too fast or too slow are ignored.
+
 ## Install
 
 ```bash
@@ -33,7 +45,7 @@ const update = detector.update({
 });
 
 if (update.rep) {
-  console.log(update.rep.count, update.rep.depthOk, update.rep.faults.map((f) => f.cue));
+  const { counted, verdict, cues, count } = update.rep; // e.g. false, 'no-rep', ["Not deep enough — that one doesn't count"], 7
 }
 ```
 
@@ -50,8 +62,8 @@ const { holding, heldMs, completed, offTarget, faults, wobble } = hold.update(fr
 
 | Exercise | Type | Checks |
 |---|---|---|
-| `squat` | rep | depth, knees caving in, chest dropping; keeps counting when the feet are out of frame |
-| `lunge` | rep | depth, chest dropping |
+| `squat` | rep | depth (no rep above 120°), knees caving in, chest dropping, feet side by side; keeps counting when the feet are out of frame |
+| `lunge` | rep | depth, chest dropping, one foot forward |
 | `jumpingJack` | rep | full arm sweep |
 | `plank` | hold | straight body line, hips sagging, hips piking |
 | `treePose` (Vrikshasana) | hold | standing leg straight, foot lifted, hips level, wobble |
@@ -68,11 +80,12 @@ export const sitToStand: RepExercise = {
   metric: { joint: 'knee' },
   thresholds: { top: 160, bottom: 110 },
   minRepMs: 800,
+  upright: { maxTilt: 30 },
   required: ['leftHip', 'rightHip', 'leftKnee', 'rightKnee'],
 };
 ```
 
-Joints: `knee`, `hip`, `elbow`, `shoulder` (arm raise) and `body` (shoulder-hip-ankle line). Checks: `knees-caving`, `chest-dropping`, `hips-sagging`, `hips-piking`, `hips-uneven`.
+Joints: `knee`, `hip`, `elbow`, `shoulder` (arm raise) and `body` (shoulder-hip-ankle line). Checks (each with a `warn` threshold and an optional `fail` threshold that costs the rep): `knees-caving`, `chest-dropping`, `hips-sagging`, `hips-piking`, `hips-uneven`.
 
 ## Develop
 

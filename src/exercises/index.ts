@@ -9,9 +9,17 @@ export const lunge: RepExercise = {
   type: 'rep',
   metric: { joint: 'knee', pick: 'min', fallback: 'thigh-drop' },
   thresholds: { top: 160, bottom: 130 },
-  depth: { target: 105, cue: 'Sink a little lower — back knee towards the floor' },
-  minRepMs: 600,
-  checks: [{ id: 'chest-dropping', cue: 'Keep your chest tall', params: { maxTorsoLean: 40 } }],
+  depth: {
+    target: 100,
+    cue: 'Sink a little lower — back knee towards the floor',
+    noRepAbove: 125,
+    noRepCue: "Not low enough — that one doesn't count",
+  },
+  minRepMs: 700,
+  maxRepMs: 8000,
+  upright: { maxTilt: 30 },
+  stance: { expect: 'staggered', cue: 'Step one foot forward — that was a squat, this set is lunges' },
+  checks: [{ id: 'chest-dropping', cue: 'Keep your chest tall', warn: 40, fail: 60, failCue: "Leaned too far forward — that one doesn't count" }],
   required: ['leftHip', 'rightHip', 'leftKnee', 'rightKnee'],
 };
 
@@ -23,6 +31,8 @@ export const jumpingJack: RepExercise = {
   metric: { joint: 'shoulder', invert: true },
   thresholds: { top: 130, bottom: 50 },
   minRepMs: 300,
+  maxRepMs: 4000,
+  upright: { maxTilt: 25 },
   required: ['leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow', 'leftHip', 'rightHip'],
 };
 
@@ -36,8 +46,8 @@ export const plank: HoldExercise = {
     { measure: 'joint', joint: 'body', angle: 175, tolerance: 15, cue: 'Make a straight line from shoulders to heels' },
   ],
   checks: [
-    { id: 'hips-sagging', cue: 'Lift your hips a little' },
-    { id: 'hips-piking', cue: 'Lower your hips' },
+    { id: 'hips-sagging', cue: 'Lift your hips a little', warn: 0.06 },
+    { id: 'hips-piking', cue: 'Lower your hips', warn: 0.08 },
   ],
   targetSeconds: 30,
   required: ['leftHip', 'rightHip'],
@@ -53,7 +63,7 @@ export const treePose: HoldExercise = {
     { measure: 'joint', joint: 'knee', pick: 'max', angle: 175, tolerance: 15, cue: 'Keep your standing leg straight' },
     { measure: 'joint', joint: 'knee', pick: 'min', angle: 60, tolerance: 40, cue: 'Bend your knee and lift your foot onto your standing leg' },
   ],
-  checks: [{ id: 'hips-uneven', cue: 'Level your hips' }],
+  checks: [{ id: 'hips-uneven', cue: 'Level your hips', warn: 0.25 }],
   targetSeconds: 20,
   required: ['leftHip', 'rightHip', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'],
 };

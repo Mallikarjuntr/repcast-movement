@@ -10,9 +10,14 @@ export type JointName = 'knee' | 'hip' | 'elbow' | 'shoulder' | 'body';
 
 export interface CheckConfig {
   id: CheckId;
-  /** What the coach says when this fault shows up. */
+  /** What the coach says when the fault is fixable. */
   cue: string;
-  params?: Record<string, number>;
+  /** Beyond this the fault is called out (direction depends on the check). */
+  warn: number;
+  /** Beyond this the rep doesn't count. Omit for checks that never cost a rep. */
+  fail?: number;
+  /** What the coach says when the rep doesn't count because of this fault. */
+  failCue?: string;
 }
 
 /**
@@ -37,10 +42,19 @@ export interface RepExercise {
   };
   /** The rep starts below `bottom` and completes back above `top` (degrees). The gap prevents double counts. */
   thresholds: { top: number; bottom: number };
-  /** The rep is deep enough when the lowest angle reaches `target` or below. */
-  depth?: { target: number; cue: string };
-  /** Faster than this is treated as noise, not a rep. */
+  /** Deep enough at `target` or below; above `noRepAbove` the rep doesn't count. */
+  depth?: { target: number; cue: string; noRepAbove?: number; noRepCue?: string };
+  /** Faster than this is noise, not a rep (ignored silently). */
   minRepMs?: number;
+  /** Slower than this isn't one rep (ignored silently). */
+  maxRepMs?: number;
+  /**
+   * The person must be standing (torso within `maxTilt` degrees of upright, head above hips above knees)
+   * before a rep can start. Stops people lying down, sitting or random movement from counting.
+   */
+  upright?: { maxTilt: number };
+  /** Foot stance expected at the bottom: feet side by side (squat) or one forward (lunge). */
+  stance?: { expect: 'square' | 'staggered'; cue: string };
   checks?: CheckConfig[];
   /** Points that must be visible to follow this exercise at all. */
   required: PointName[];

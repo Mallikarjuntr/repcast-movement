@@ -4,7 +4,8 @@ import { HoldDetector, jumpingJack, lunge, plank, RepDetector, treePose, type Ho
 import { figure, motion } from './figure.js';
 
 function countReps(detector: RepDetector, frames: PoseFrame[]): number {
-  return frames.filter((f) => detector.update(f).rep).length;
+  for (const f of frames) detector.update(f);
+  return detector.count;
 }
 
 function setPoint(frame: PoseFrame, name: keyof typeof POINTS, x: number, y: number): void {
@@ -40,8 +41,21 @@ function hold(detector: HoldDetector, makeFrame: (t: number) => PoseFrame, secon
 }
 
 describe('lunge', () => {
-  it('counts lunges from the more bent knee', () => {
-    expect(countReps(new RepDetector(lunge), motion([175, 95, 175, 95, 175]))).toBe(2);
+  it('counts lunges with one knee dropping towards the floor', () => {
+    const frames = motion([175, 85, 175, 85, 175], 15).map((f, i, all) => {
+      const knee = 175 - (175 - 85) * Math.abs(Math.sin((Math.PI * i) / ((all.length - 1) / 2)));
+      return figure(f.t, { knee, lungeGap: (1.1 * (175 - knee)) / 90 });
+    });
+    const detector = new RepDetector(lunge);
+    for (const f of frames) detector.update(f);
+    expect(detector.count).toBe(2);
+  });
+
+  it("doesn't count a squat during a lunge set", () => {
+    const detector = new RepDetector(lunge);
+    const results = motion([175, 85, 175], 15).map((f) => detector.update(f).rep).filter(Boolean);
+    expect(detector.count).toBe(0);
+    expect(results[0]!.cues[0]).toMatch(/one foot forward/i);
   });
 });
 

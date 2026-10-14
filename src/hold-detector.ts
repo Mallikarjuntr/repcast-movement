@@ -1,4 +1,4 @@
-import { CHECKS } from './checks.js';
+import { gradeCheck } from './checks.js';
 import type { HoldExercise, HoldTarget } from './definitions.js';
 import { DEFAULT_MIN_VISIBILITY, distance2d, imagePoint, isVisible, midpoint } from './geometry.js';
 import type { PointName } from './landmarks.js';
@@ -66,9 +66,11 @@ export class HoldDetector {
   update(frame: PoseFrame): HoldUpdate {
     const missing = this.exercise.required.filter((n) => !isVisible(frame, n, this.minVisibility));
     const offTarget = this.exercise.targets.filter((t) => !this.meets(frame, t)).map((t) => t.cue);
-    const faults: Fault[] = (this.exercise.checks ?? [])
-      .filter((c) => CHECKS[c.id](frame, c.params ?? {}, this.minVisibility) === true)
-      .map((c) => ({ id: c.id, cue: c.cue }));
+    const faults: Fault[] = [];
+    for (const c of this.exercise.checks ?? []) {
+      const severity = gradeCheck(c.id, frame, c.warn, c.fail, this.minVisibility);
+      if (severity) faults.push({ id: c.id, cue: severity === 'fail' ? (c.failCue ?? c.cue) : c.cue, severity });
+    }
     const inPose = missing.length === 0 && offTarget.length === 0;
     const dt = this.lastT === null ? 0 : frame.t - this.lastT;
     this.lastT = frame.t;
