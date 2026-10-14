@@ -111,6 +111,19 @@ export class RepDetector {
     return this.reps;
   }
 
+  /** Internal measurements, for tuning tools and test benches. */
+  diagnostics(): { standingAngle: number | null; topLine: number; footDrift: number | null; hipDrift: number | null; scaleChange: number } {
+    const legLength = this.start?.legLength ?? 0;
+    const shoulderWidth = this.start?.shoulderWidth ?? 0;
+    return {
+      standingAngle: this.standingAngle,
+      topLine: this.topLine(),
+      footDrift: legLength > 0 ? Math.min(this.footDrift[0], this.footDrift[1]) / legLength : null,
+      hipDrift: shoulderWidth > 0 ? this.hipDrift / shoulderWidth : null,
+      scaleChange: this.scaleChange,
+    };
+  }
+
   reset(): void {
     this.phase = 'waiting';
     this.smoothed = null;
