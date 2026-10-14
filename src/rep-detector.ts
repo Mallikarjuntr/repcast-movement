@@ -23,8 +23,8 @@ const STANDING_WINDOW = 90;
 const ANCHOR_FRAMES = 8;
 /** After the legs straighten, how long the torso may take to come upright before the rep is judged. */
 const FINISH_GRACE_MS = 1200;
-/** A fraction of bottom frames that must look staggered before a rep is called a lunge. */
-const STAGGERED_VOTE = 0.6;
+/** Share of bottom frames showing a lunge stance that makes the rep a lunge (lunge evidence is the reliable kind). */
+const STAGGERED_VOTE = 0.35;
 /** Keep at least this gap between the top and bottom lines, so wobbles never count. */
 const MIN_HYSTERESIS = 12;
 
