@@ -54,7 +54,7 @@ export function stance(frame: PoseFrame, minVisibility: number): 'square' | 'sta
   const rk = bodyPoint(frame, 'rightKnee');
   const thigh = (distance3d(bodyPoint(frame, 'leftHip'), lk) + distance3d(bodyPoint(frame, 'rightHip'), rk)) / 2;
   if (thigh === 0) return null;
-  return Math.abs(lk.y - rk.y) / thigh > 0.4 ? 'staggered' : 'square';
+  return Math.abs(lk.y - rk.y) / thigh > 0.5 ? 'staggered' : 'square';
 }
 
 function avg(a: number | null, b: number | null): number | null {

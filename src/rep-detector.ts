@@ -12,15 +12,17 @@ const RAD_TO_DEG = 180 / Math.PI;
 const MAX_FOOT_DRIFT = 0.3;
 /** Without visible feet: hip drift sideways, as a fraction of shoulder width. */
 const MAX_HIP_DRIFT = 0.8;
-/** Apparent body size change during one rep (zoom, walking towards the phone). */
-const MAX_SCALE_CHANGE = 1.35;
 /**
  * People stand with different knee straightness (and the lite pose model under-reads straight legs),
  * so "back at the top" is set this far below the person's own standing angle.
  */
-const STANDING_MARGIN = 8;
-/** How fast the learned standing angle relaxes per frame, so it follows the person rather than one spike. */
-const STANDING_DECAY = 0.02;
+const STANDING_MARGIN = 10;
+/** Upright frames remembered to learn the standing angle (about 5 s at 15–19 fps). */
+const STANDING_WINDOW = 90;
+/** Standing frames averaged for the feet's starting position, so one jittery frame can't skew it. */
+const ANCHOR_FRAMES = 8;
+/** A fraction of bottom frames that must look staggered before a rep is called a lunge. */
+const STAGGERED_VOTE = 0.6;
 /** Keep at least this gap between the top and bottom lines, so wobbles never count. */
 const MIN_HYSTERESIS = 12;
 
@@ -88,13 +90,16 @@ export class RepDetector {
   private lastTopAt = 0;
   private lastTopFrame: PoseFrame | null = null;
   private start: Anchor | null = null;
-  private footDrift: [number, number] = [0, 0];
-  private hipDrift = 0;
-  private scaleChange = 1;
+  /** Recent standing frames, for a steady starting anchor. */
+  private topFrames: PoseFrame[] = [];
+  /** Per-frame drift during the current rep (feet or hips), judged by a percentile to ignore jitter. */
+  private drifts: number[] = [];
+  /** Stance seen on each bottom frame of the current rep. */
+  private stanceVotes = { square: 0, staggered: 0 };
   /** Tallest recent hip-to-knee vertical drop in the image, i.e. the thigh while standing. */
   private thighReference = 0;
-  /** The person's own standing angle, learned while they're upright. */
-  private standingAngle: number | null = null;
+  /** Recent upright metric values; the person's standing angle is a high percentile of these. */
+  private standingSamples: number[] = [];
   private readonly smoothing: number;
   private readonly minVisibility: number;
 
@@ -112,15 +117,13 @@ export class RepDetector {
   }
 
   /** Internal measurements, for tuning tools and test benches. */
-  diagnostics(): { standingAngle: number | null; topLine: number; footDrift: number | null; hipDrift: number | null; scaleChange: number } {
-    const legLength = this.start?.legLength ?? 0;
-    const shoulderWidth = this.start?.shoulderWidth ?? 0;
+  diagnostics(): { standingAngle: number | null; topLine: number; drift: number | null; staggeredShare: number | null } {
+    const votes = this.stanceVotes.square + this.stanceVotes.staggered;
     return {
       standingAngle: this.standingAngle,
       topLine: this.topLine(),
-      footDrift: legLength > 0 ? Math.min(this.footDrift[0], this.footDrift[1]) / legLength : null,
-      hipDrift: shoulderWidth > 0 ? this.hipDrift / shoulderWidth : null,
-      scaleChange: this.scaleChange,
+      drift: this.drifts.length ? percentile(this.drifts, 0.7) : null,
+      staggeredShare: votes ? this.stanceVotes.staggered / votes : null,
     };
   }
 
@@ -133,7 +136,13 @@ export class RepDetector {
     this.lastTopFrame = null;
     this.start = null;
     this.thighReference = 0;
-    this.standingAngle = null;
+    this.standingSamples = [];
+    this.topFrames = [];
+  }
+
+  /** The person's own standing angle: the 80th percentile of recent upright frames. */
+  private get standingAngle(): number | null {
+    return this.standingSamples.length < 5 ? null : percentile(this.standingSamples, 0.8);
   }
 
   /** The angle that counts as standing tall again for this person. */
@@ -155,7 +164,8 @@ export class RepDetector {
     const metric = this.smoothed;
     const upright = this.isStanding(frame);
     if (upright && this.phase !== 'down') {
-      this.standingAngle = this.standingAngle === null ? metric : Math.max(metric, this.standingAngle - STANDING_DECAY);
+      this.standingSamples.push(metric);
+      if (this.standingSamples.length > STANDING_WINDOW) this.standingSamples.shift();
     }
     const top = this.topLine();
     const { bottom } = this.exercise.thresholds;
@@ -175,14 +185,17 @@ export class RepDetector {
           this.repStart = this.lastTopAt;
           this.lowest = metric;
           this.lowestFrame = frame;
-          this.start = this.anchor(this.lastTopFrame);
-          this.footDrift = [0, 0];
-          this.hipDrift = 0;
-          this.scaleChange = 1;
+          this.start = this.steadyAnchor();
+          this.drifts = [];
+          this.stanceVotes = { square: 0, staggered: 0 };
         }
         break;
       case 'down':
         this.trackDrift(frame);
+        if (metric < bottom) {
+          const seen = stance(frame, this.minVisibility);
+          if (seen) this.stanceVotes[seen] += 1;
+        }
         if (metric < this.lowest) {
           this.lowest = metric;
           this.lowestFrame = frame;
@@ -214,6 +227,8 @@ export class RepDetector {
     this.phase = 'top';
     this.lastTopAt = frame.t;
     this.lastTopFrame = frame;
+    this.topFrames.push(frame);
+    if (this.topFrames.length > ANCHOR_FRAMES) this.topFrames.shift();
   }
 
   private judgeRep(durationMs: number, endedStanding: boolean): RepResult {
@@ -226,9 +241,10 @@ export class RepDetector {
     if (this.cameraMoved()) noRep.push('The camera moved — keep the phone still');
     if (!endedStanding) noRep.push('Finish each rep standing tall');
 
-    if (stanceRule && frame) {
-      const seen = stance(frame, this.minVisibility);
-      if (seen !== null && seen !== stanceRule.expect) noRep.push(stanceRule.cue);
+    const votes = this.stanceVotes.square + this.stanceVotes.staggered;
+    if (stanceRule && votes > 0) {
+      const staggered = this.stanceVotes.staggered / votes >= STAGGERED_VOTE;
+      if ((staggered ? 'staggered' : 'square') !== stanceRule.expect) noRep.push(stanceRule.cue);
     }
 
     if (depth) {
@@ -278,30 +294,43 @@ export class RepDetector {
     };
   }
 
+  /** Starting anchor from the median of recent standing frames. */
+  private steadyAnchor(): Anchor {
+    const anchors = this.topFrames.map((f) => this.anchor(f));
+    const med = (pts: (Point | null)[]): Point | null => {
+      const seen = pts.filter((p): p is Point => p !== null);
+      if (seen.length === 0) return null;
+      return { x: percentile(seen.map((p) => p.x), 0.5), y: percentile(seen.map((p) => p.y), 0.5), z: 0 };
+    };
+    const num = (xs: number[]) => (xs.filter((x) => x > 0).length ? percentile(xs.filter((x) => x > 0), 0.5) : 0);
+    return {
+      feet: [med(anchors.map((a) => a.feet[0])), med(anchors.map((a) => a.feet[1]))],
+      hips: med(anchors.map((a) => a.hips)),
+      legLength: num(anchors.map((a) => a.legLength)),
+      shoulderWidth: num(anchors.map((a) => a.shoulderWidth)),
+    };
+  }
+
+  /**
+   * How far the body's base moved this frame, relative to its size: the less-moved foot over leg
+   * length, or with the feet hidden, sideways hip drift over shoulder width.
+   */
   private trackDrift(frame: PoseFrame): void {
-    if (!this.start) return;
-    const now = this.anchor(frame);
     const ref = this.start;
-    for (const i of [0, 1] as const) {
-      const a = ref.feet[i];
-      const b = now.feet[i];
-      if (a && b) this.footDrift[i] = Math.max(this.footDrift[i], distance2d(a, b));
-    }
-    if (ref.hips && now.hips) this.hipDrift = Math.max(this.hipDrift, Math.abs(now.hips.x - ref.hips.x));
-    if (ref.shoulderWidth > 0 && now.shoulderWidth > 0) {
-      const ratio = now.shoulderWidth / ref.shoulderWidth;
-      this.scaleChange = Math.max(this.scaleChange, ratio, 1 / ratio);
+    if (!ref) return;
+    const now = this.anchor(frame);
+    const [a0, a1] = ref.feet;
+    const [b0, b1] = now.feet;
+    if (a0 && a1 && b0 && b1 && ref.legLength > 0) {
+      this.drifts.push(Math.min(distance2d(a0, b0), distance2d(a1, b1)) / ref.legLength / MAX_FOOT_DRIFT);
+    } else if (ref.hips && now.hips && ref.shoulderWidth > 0) {
+      this.drifts.push(Math.abs(now.hips.x - ref.hips.x) / ref.shoulderWidth / MAX_HIP_DRIFT);
     }
   }
 
-  /** Both feet moving (or, with feet hidden, the hips sliding sideways) means the phone or person moved. */
+  /** The base drifted past its limit for most of the rep: the phone (or the person) moved. */
   private cameraMoved(): boolean {
-    const ref = this.start;
-    if (!ref) return false;
-    if (this.scaleChange > MAX_SCALE_CHANGE) return true;
-    const bothFeet = ref.feet[0] && ref.feet[1] && ref.legLength > 0;
-    if (bothFeet) return Math.min(this.footDrift[0], this.footDrift[1]) / ref.legLength > MAX_FOOT_DRIFT;
-    return ref.shoulderWidth > 0 && this.hipDrift / ref.shoulderWidth > MAX_HIP_DRIFT;
+    return this.drifts.length > 0 && percentile(this.drifts, 0.7) > 1;
   }
 
   private measure(frame: PoseFrame): { value: number; fallback: boolean } | null {
@@ -332,4 +361,9 @@ export class RepDetector {
     this.thighReference = Math.max(drop, this.thighReference * THIGH_REFERENCE_DECAY);
     return drop;
   }
+}
+
+function percentile(values: number[], p: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1) + 0.5))]!;
 }

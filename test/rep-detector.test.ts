@@ -125,7 +125,7 @@ describe('the honest spotter: things that must not count', () => {
     const frames: PoseFrame[] = [...stand(0)];
     for (let i = 0; i <= 30; i++) {
       const glitch = i > 5 && i < 25;
-      frames.push(figure(400 + i * 40, { knee: glitch ? 90 : 175, shiftY: glitch ? 0.12 * Math.sin(i) : 0 }));
+      frames.push(figure(400 + i * 40, { knee: glitch ? 90 : 175, shiftY: glitch ? 0.3 * Math.sin(i * 1.3) : 0 }));
     }
     frames.push(...stand(1700));
     const { reps, detector } = run(frames);
