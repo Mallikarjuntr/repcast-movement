@@ -1,5 +1,5 @@
 import type { JointName } from './definitions.js';
-import { angleFromVertical, bodyPoint, isVisible, jointAngle, midpoint } from './geometry.js';
+import { angleFromVertical, bodyPoint, imagePoint, isVisible, jointAngle, midpoint } from './geometry.js';
 import { POINTS as POINT_INDEX, SIDES, type PointName, type Side } from './landmarks.js';
 import type { PoseFrame } from './types.js';
 
@@ -41,6 +41,20 @@ export function isUpright(frame: PoseFrame, maxTilt: number, minVisibility: numb
   const knees = avg(y('leftKnee'), y('rightKnee'));
   if (shoulders === null || hips === null) return false;
   return shoulders < hips && (knees === null || hips < knees);
+}
+
+/**
+ * Lying down (push-ups, bridges): the shoulder-to-hip line, on whichever side is visible, at least
+ * `minTilt` degrees from vertical in the image. Uses image points: side-on, the 3D estimate is unreliable.
+ */
+export function isLying(frame: PoseFrame, minTilt: number, minVisibility: number): boolean {
+  for (const side of SIDES) {
+    const shoulder: PointName = `${side}Shoulder`;
+    const hip: PointName = `${side}Hip`;
+    if (!isVisible(frame, shoulder, minVisibility) || !isVisible(frame, hip, minVisibility)) continue;
+    return angleFromVertical(imagePoint(frame, shoulder), imagePoint(frame, hip)) >= minTilt;
+  }
+  return false;
 }
 
 /** Knee height gap over standing torso length above which the stance is a lunge (tuned on real video). */

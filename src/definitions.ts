@@ -54,6 +54,11 @@ export interface RepExercise {
    */
   upright?: { maxTilt: number };
   /**
+   * The person must be lying down (torso at least `minTilt` degrees from upright in the image) for a
+   * rep to start, as in push-ups and glute bridges. Filmed side-on with the phone on the floor.
+   */
+  lying?: { minTilt: number };
+  /**
    * Feet stay planted during a rep (default true). When planted, both feet moving means the camera
    * or person moved, so the rep doesn't count. Set false for stepping moves like forward lunges.
    */

@@ -2,7 +2,7 @@ import { gradeCheck, type CheckId, type Severity } from './checks.js';
 import type { RepExercise } from './definitions.js';
 import { DEFAULT_MIN_VISIBILITY, distance2d, imagePoint, isVisible, midpoint } from './geometry.js';
 import { SIDES, type PointName } from './landmarks.js';
-import { isUpright, jointAngles, pick, stance } from './measures.js';
+import { isLying, isUpright, jointAngles, pick, stance } from './measures.js';
 import type { PoseFrame } from './types.js';
 
 /** Per-frame decay of the standing thigh reference, so it adapts if the person moves nearer or farther. */
@@ -231,8 +231,10 @@ export class RepDetector {
     return { metric, phase: this.phase, missing, usingFallback: measured.fallback, rep };
   }
 
+  /** In the start position: standing for most exercises, lying for floor ones (push-ups, bridges). */
   private isStanding(frame: PoseFrame): boolean {
-    const upright = this.exercise.upright;
+    const { upright, lying } = this.exercise;
+    if (lying) return isLying(frame, lying.minTilt, this.minVisibility);
     return !upright || isUpright(frame, upright.maxTilt, this.minVisibility);
   }
 
@@ -252,7 +254,7 @@ export class RepDetector {
     const frame = this.lowestFrame;
 
     if (this.exercise.plantedFeet !== false && this.cameraMoved()) noRep.push('The camera moved — keep the phone still');
-    if (!endedStanding) noRep.push('Finish each rep standing tall');
+    if (!endedStanding) noRep.push(this.exercise.lying ? 'Stay down in position for the whole rep' : 'Finish each rep standing tall');
 
     const votes = this.stanceVotes.square + this.stanceVotes.staggered;
     if (stanceRule && votes > 0) {

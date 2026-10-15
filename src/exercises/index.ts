@@ -24,6 +24,28 @@ export const lunge: RepExercise = {
   required: ['leftHip', 'rightHip', 'leftKnee', 'rightKnee'],
 };
 
+/** Only halfway down, kinder to tight knees: going deeper is fine, barely bending isn't a rep. */
+export const halfSquat: RepExercise = {
+  ...squat,
+  id: 'half-squat',
+  name: 'Half squat',
+  thresholds: { top: 160, bottom: 148 },
+  depth: { target: 135, cue: 'Bend a little more — about halfway down' },
+};
+
+/** Feet wide, toes out; the knees still track over the toes. */
+export const sumoSquat: RepExercise = {
+  ...squat,
+  id: 'sumo-squat',
+  name: 'Sumo squat',
+  depth: {
+    target: 100,
+    cue: 'Sit a little lower — thighs towards level',
+    noRepAbove: 125,
+    noRepCue: "Not deep enough — that one doesn't count",
+  },
+};
+
 /** Arms sweep from the sides to overhead; the shoulder angle grows, so it is inverted. */
 export const jumpingJack: RepExercise = {
   id: 'jumping-jack',
@@ -35,6 +57,91 @@ export const jumpingJack: RepExercise = {
   maxRepMs: 4000,
   upright: { maxTilt: 25 },
   required: ['leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow', 'leftHip', 'rightHip'],
+};
+
+/** Step back into the lunge; the back knee still drops towards the floor. */
+export const reverseLunge: RepExercise = {
+  ...lunge,
+  id: 'reverse-lunge',
+  name: 'Reverse lunge',
+  stance: { expect: 'staggered', cue: 'Step one foot back — that was a squat, this set is lunges' },
+};
+
+/** Feet stay where they are, one forward and one back: straight down and up. */
+export const splitSquat: RepExercise = {
+  ...lunge,
+  id: 'split-squat',
+  name: 'Split squat',
+  plantedFeet: true,
+  stance: { expect: 'staggered', cue: 'Keep one foot forward and one back — this set is split squats' },
+};
+
+/** Step back and across, like a curtsy; judged like a lunge. */
+export const curtsyLunge: RepExercise = {
+  ...lunge,
+  id: 'curtsy-lunge',
+  name: 'Curtsy lunge',
+  stance: { expect: 'staggered', cue: 'Step one foot back and across — this set is curtsy lunges' },
+};
+
+/** A jumping jack without the jump: one foot steps out as the arms go up. A little slower. */
+export const stepJack: RepExercise = {
+  ...jumpingJack,
+  id: 'step-jack',
+  name: 'Step jack',
+  minRepMs: 500,
+  maxRepMs: 5000,
+};
+
+/**
+ * Elbows bend and straighten while the body stays in one line. Filmed side-on with the phone on the
+ * floor; reps only start lying down, so arm movements while standing never count.
+ */
+export const pushUp: RepExercise = {
+  id: 'push-up',
+  name: 'Push-up',
+  type: 'rep',
+  metric: { joint: 'elbow' },
+  thresholds: { top: 150, bottom: 125 },
+  depth: {
+    target: 100,
+    cue: 'Go a little lower — chest towards the floor',
+    noRepAbove: 118,
+    noRepCue: "Not low enough — that one doesn't count",
+  },
+  minRepMs: 600,
+  maxRepMs: 8000,
+  lying: { minTilt: 45 },
+  checks: [
+    { id: 'hips-sagging', cue: 'Squeeze your glutes — keep your hips up', warn: 0.07, fail: 0.15, failCue: "Hips sagged too far — that one doesn't count" },
+    { id: 'hips-piking', cue: 'Lower your hips into one straight line', warn: 0.09 },
+  ],
+  required: ['leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow'],
+};
+
+/** Push-ups from the knees: same arms, a lighter load. The line is shoulders to knees, so no hip checks. */
+export const kneePushUp: RepExercise = {
+  ...pushUp,
+  id: 'knee-push-up',
+  name: 'Knee push-up',
+  checks: [],
+};
+
+/**
+ * Lying on your back, knees bent: lift the hips until shoulders, hips and knees make a straight line.
+ * The hip angle opens during the rep, so it is inverted (180° = hips fully up → 0).
+ */
+export const gluteBridge: RepExercise = {
+  id: 'glute-bridge',
+  name: 'Glute bridge',
+  type: 'rep',
+  metric: { joint: 'hip', invert: true },
+  thresholds: { top: 40, bottom: 22 },
+  depth: { target: 12, cue: 'Lift your hips higher — squeeze at the top' },
+  minRepMs: 600,
+  maxRepMs: 8000,
+  lying: { minTilt: 45 },
+  required: ['leftHip', 'rightHip', 'leftKnee', 'rightKnee'],
 };
 
 /** Best filmed from the side with the phone on the floor. */
@@ -71,8 +178,17 @@ export const treePose: HoldExercise = {
 
 export const EXERCISES: Record<string, ExerciseDefinition> = {
   [squat.id]: squat,
+  [halfSquat.id]: halfSquat,
+  [sumoSquat.id]: sumoSquat,
   [lunge.id]: lunge,
+  [reverseLunge.id]: reverseLunge,
+  [splitSquat.id]: splitSquat,
+  [curtsyLunge.id]: curtsyLunge,
   [jumpingJack.id]: jumpingJack,
+  [stepJack.id]: stepJack,
+  [pushUp.id]: pushUp,
+  [kneePushUp.id]: kneePushUp,
+  [gluteBridge.id]: gluteBridge,
   [plank.id]: plank,
   [treePose.id]: treePose,
 };
