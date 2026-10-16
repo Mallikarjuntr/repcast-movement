@@ -38,6 +38,13 @@ export const sumoSquat: RepExercise = {
   ...squat,
   id: 'sumo-squat',
   name: 'Sumo squat',
+  // Ordinary squats measured 0.8–1.2 on real video, a sumo stance about 2.2 (docs/TESTING.md).
+  width: {
+    min: 1.5,
+    cue: 'Step your feet a little wider',
+    noRepBelow: 1.25,
+    noRepCue: "Feet wider — that was a squat, this set is sumo squats",
+  },
   depth: {
     target: 100,
     cue: 'Sit a little lower — thighs towards level',

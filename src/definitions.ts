@@ -65,6 +65,12 @@ export interface RepExercise {
   plantedFeet?: boolean;
   /** Foot stance expected at the bottom: feet side by side (squat) or one forward (lunge). */
   stance?: { expect: 'square' | 'staggered'; cue: string };
+  /**
+   * How wide the feet must be, as ankle span over shoulder span while standing at the start of the
+   * rep (see `stanceWidth`). Below `min` the coach asks for wider feet; below `noRepBelow` the rep
+   * doesn't count. Not judged side-on or with the feet out of view.
+   */
+  width?: { min: number; cue: string; noRepBelow?: number; noRepCue?: string };
   checks?: CheckConfig[];
   /** Points that must be visible to follow this exercise at all. */
   required: PointName[];

@@ -76,6 +76,25 @@ export function stance(frame: PoseFrame, minVisibility: number, standingTorso: n
 }
 
 /**
+ * How wide the feet are: the ankle-to-ankle span over the shoulder span, both in the image. Both
+ * run across the body, so turning the camera (up to the recommended 45°) shrinks them alike and the
+ * ratio holds: about 0.8–1.2 for an ordinary squat stance, 2 or more for a sumo stance. Null when
+ * the ankles or shoulders are hidden, or side-on, where the legs overlap and can't be told apart.
+ */
+export function stanceWidth(frame: PoseFrame, minVisibility: number): number | null {
+  const names: PointName[] = ['leftShoulder', 'rightShoulder', 'leftAnkle', 'rightAnkle'];
+  if (!names.every((n) => isVisible(frame, n, minVisibility))) return null;
+  if (isSideOn(frame, minVisibility) !== false) return null;
+  const span = (a: PointName, b: PointName) => {
+    const pa = imagePoint(frame, a);
+    const pb = imagePoint(frame, b);
+    return Math.hypot(pa.x - pb.x, pa.y - pb.y);
+  };
+  const shoulders = span('leftShoulder', 'rightShoulder');
+  return shoulders > 0 ? span('leftAnkle', 'rightAnkle') / shoulders : null;
+}
+
+/**
  * Shoulder width over torso length below which the camera sees the person side-on. Facing the camera
  * is about 0.8–1.0; the recommended 45° placement about 0.55–0.65; side-on 0.1–0.3.
  */

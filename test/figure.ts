@@ -18,12 +18,17 @@ export interface FigureOptions {
   shiftY?: number;
   /** Person lying on their side: rotate the whole body 90°. */
   lying?: boolean;
+  /** Half the distance between the ankles (default 0.08; the shoulders are 0.1 either side). */
+  feetHalfWidth?: number;
+  /** Camera turned away from facing: shrinks every sideways distance in the image (0.7 ≈ 45°, 0.2 ≈ side-on). */
+  turn?: number;
 }
 
 const SHIN = 0.2;
 const THIGH = 0.2;
 const TORSO = 0.25;
 const ANKLE_HALF_WIDTH = 0.08;
+const HIP_HALF_WIDTH = 0.06;
 const DEG = Math.PI / 180;
 
 /** A front-facing stick figure whose shins stay vertical while the thighs fold forward. */
@@ -31,14 +36,22 @@ export function figure(t: number, opts: FigureOptions): PoseFrame {
   const landmarks: Landmark[] = Array.from({ length: 33 }, () => ({ x: 0.5, y: 0.5, z: 0, visibility: 0 }));
   const fold = (180 - opts.knee) * DEG;
   const lean = (opts.torsoLean ?? 10) * DEG;
-  const kneeHalf = ANKLE_HALF_WIDTH * (opts.kneeWidthRatio ?? 1);
+  const feetHalf = opts.feetHalfWidth ?? ANKLE_HALF_WIDTH;
+  // With a chosen foot width the legs stand straight (knees on the hip-to-ankle line) and the knees
+  // move out over the toes as the squat deepens, as in a real wide stance. Otherwise shins stay vertical.
+  const depth = Math.min(1, fold / (90 * DEG));
+  const standingKnee = (feetHalf + HIP_HALF_WIDTH) / 2;
+  const kneeHalf =
+    opts.feetHalfWidth === undefined
+      ? feetHalf * (opts.kneeWidthRatio ?? 1)
+      : standingKnee + (feetHalf * (opts.kneeWidthRatio ?? 1) - standingKnee) * depth;
 
   const set = (name: keyof typeof POINTS, x: number, y: number, z: number, visibility = 0.99) => {
     landmarks[POINTS[name]] = { x, y, z, visibility };
   };
 
   for (const [side, sign] of [['left', -1], ['right', 1]] as const) {
-    const ankleX = 0.5 + sign * ANKLE_HALF_WIDTH;
+    const ankleX = 0.5 + sign * feetHalf;
     const kneeX = 0.5 + sign * kneeHalf;
     const kneeY = 0.9 - SHIN;
     // The thigh rotates toward the camera (z) and is foreshortened vertically.
@@ -46,7 +59,7 @@ export function figure(t: number, opts: FigureOptions): PoseFrame {
     const hipZ = -THIGH * Math.sin(fold);
     set(`${side}Ankle`, ankleX, 0.9, 0, opts.hideAnkles ? 0.1 : 0.99);
     set(`${side}Knee`, kneeX, kneeY, 0);
-    set(`${side}Hip`, 0.5 + sign * 0.06, hipY, hipZ);
+    set(`${side}Hip`, 0.5 + sign * HIP_HALF_WIDTH, hipY, hipZ);
     const shoulderX = 0.5 + sign * 0.1;
     const shoulderY = hipY - TORSO * Math.cos(lean);
     set(`${side}Shoulder`, shoulderX, shoulderY, hipZ - TORSO * Math.sin(lean));
@@ -60,6 +73,12 @@ export function figure(t: number, opts: FigureOptions): PoseFrame {
     for (const name of ['rightKnee', 'rightAnkle'] as const) {
       const p = landmarks[POINTS[name]]!;
       landmarks[POINTS[name]] = { ...p, y: p.y + opts.lungeGap * THIGH };
+    }
+  }
+  if (opts.turn !== undefined) {
+    for (let i = 0; i < landmarks.length; i++) {
+      const p = landmarks[i]!;
+      landmarks[i] = { ...p, x: 0.5 + (p.x - 0.5) * opts.turn };
     }
   }
   if (opts.lying) {

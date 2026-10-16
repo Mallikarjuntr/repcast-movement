@@ -10,6 +10,7 @@ import {
   reverseLunge,
   splitSquat,
   stepJack,
+  squat,
   sumoSquat,
   type PoseFrame,
   type RepResult,
@@ -88,9 +89,45 @@ describe('half squat', () => {
 });
 
 describe('sumo squat', () => {
+  const wide = { feetHalfWidth: 0.2, kneeWidthRatio: 1.05 };
+
   it('counts deep squats with the knees out over wide feet', () => {
-    const reps = run(new RepDetector(sumoSquat), motion([175, 90, 175, 90, 175], 15, { kneeWidthRatio: 1.05 }));
+    const reps = run(new RepDetector(sumoSquat), motion([175, 90, 175, 90, 175], 15, wide));
     expect(reps.filter((r) => r.verdict === 'good')).toHaveLength(2);
+  });
+
+  it('still counts a wide stance filmed from 45°', () => {
+    const reps = run(new RepDetector(sumoSquat), motion([175, 90, 175, 90, 175], 15, { ...wide, turn: 0.7 }));
+    expect(reps.filter((r) => r.verdict === 'good')).toHaveLength(2);
+  });
+
+  it("doesn't count an ordinary squat stance, and says why", () => {
+    const reps = run(new RepDetector(sumoSquat), motion([175, 90, 175], 15, { feetHalfWidth: 0.09 }));
+    expect(reps).toHaveLength(1);
+    expect(reps[0]!.counted).toBe(false);
+    expect(reps[0]!.cues[0]).toMatch(/Feet wider/);
+  });
+
+  it("doesn't count an ordinary stance from 45° either", () => {
+    const reps = run(new RepDetector(sumoSquat), motion([175, 90, 175], 15, { feetHalfWidth: 0.09, turn: 0.7 }));
+    expect(reps[0]!.counted).toBe(false);
+  });
+
+  it('counts a slightly narrow stance but asks for wider feet', () => {
+    const reps = run(new RepDetector(sumoSquat), motion([175, 90, 175], 15, { feetHalfWidth: 0.14, kneeWidthRatio: 1.05 }));
+    expect(reps[0]!.verdict).toBe('fix');
+    expect(reps[0]!.cues).toContain('Step your feet a little wider');
+  });
+
+  it("can't judge width side-on or with the feet hidden, so it doesn't penalise", () => {
+    const sideOn = run(new RepDetector(sumoSquat), motion([175, 90, 175], 15, { feetHalfWidth: 0.09, turn: 0.2 }));
+    const noFeet = run(new RepDetector(sumoSquat), motion([175, 90, 175], 15, { feetHalfWidth: 0.09, hideAnkles: true }));
+    for (const reps of [sideOn, noFeet]) expect(reps.every((r) => !r.cues.some((c) => /wider/i.test(c)))).toBe(true);
+  });
+
+  it('leaves ordinary squats alone', () => {
+    const reps = run(new RepDetector(squat), motion([175, 80, 175], 15, { feetHalfWidth: 0.09 }));
+    expect(reps[0]!.verdict).toBe('good');
   });
 });
 

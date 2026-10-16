@@ -2,7 +2,7 @@ import { gradeCheck, type CheckId, type Severity } from './checks.js';
 import type { RepExercise } from './definitions.js';
 import { DEFAULT_MIN_VISIBILITY, distance2d, imagePoint, isVisible, midpoint } from './geometry.js';
 import { SIDES, type PointName } from './landmarks.js';
-import { isLying, isUpright, jointAngles, pick, stance } from './measures.js';
+import { isLying, isUpright, jointAngles, pick, stance, stanceWidth } from './measures.js';
 import type { PoseFrame } from './types.js';
 
 /** Per-frame decay of the standing thigh reference, so it adapts if the person moves nearer or farther. */
@@ -82,6 +82,8 @@ interface Anchor {
   shoulderWidth: number;
   /** Shoulder-centre to hip-centre length in the image: the ruler for stance. */
   torso: number;
+  /** Ankle span over shoulder span while standing, or null when it can't be judged. */
+  width: number | null;
 }
 
 export class RepDetector {
@@ -256,6 +258,13 @@ export class RepDetector {
     if (this.exercise.plantedFeet !== false && this.cameraMoved()) noRep.push('The camera moved — keep the phone still');
     if (!endedStanding) noRep.push(this.exercise.lying ? 'Stay down in position for the whole rep' : 'Finish each rep standing tall');
 
+    const width = this.exercise.width;
+    const spread = this.start?.width ?? null;
+    if (width && spread !== null) {
+      if (width.noRepBelow !== undefined && spread < width.noRepBelow) noRep.push(width.noRepCue ?? width.cue);
+      else if (spread < width.min) fixes.push(width.cue);
+    }
+
     const votes = this.stanceVotes.square + this.stanceVotes.staggered;
     if (stanceRule && votes > 0) {
       const staggered = this.stanceVotes.staggered / votes >= STAGGERED_VOTE;
@@ -308,6 +317,7 @@ export class RepDetector {
       legLength: legs.length ? legs.reduce((a, b) => a + b, 0) / legs.length : 0,
       shoulderWidth: ls && rs ? distance2d(ls, rs) : 0,
       torso: shoulders && lh && rh ? distance2d(shoulders, midpoint(lh, rh)) : 0,
+      width: stanceWidth(frame, this.minVisibility),
     };
   }
 
@@ -320,12 +330,15 @@ export class RepDetector {
       return { x: percentile(seen.map((p) => p.x), 0.5), y: percentile(seen.map((p) => p.y), 0.5), z: 0 };
     };
     const num = (xs: number[]) => (xs.filter((x) => x > 0).length ? percentile(xs.filter((x) => x > 0), 0.5) : 0);
+    const widths = anchors.map((a) => a.width).filter((w): w is number => w !== null);
     return {
       feet: [med(anchors.map((a) => a.feet[0])), med(anchors.map((a) => a.feet[1]))],
       hips: med(anchors.map((a) => a.hips)),
       legLength: num(anchors.map((a) => a.legLength)),
       shoulderWidth: num(anchors.map((a) => a.shoulderWidth)),
       torso: num(anchors.map((a) => a.torso)),
+      // Judged only when most standing frames could see it, so a few stray frames can't decide.
+      width: widths.length * 2 >= anchors.length && widths.length > 0 ? percentile(widths, 0.5) : null,
     };
   }
 
