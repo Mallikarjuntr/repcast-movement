@@ -4,6 +4,7 @@ import {
   curtsyLunge,
   gluteBridge,
   halfSquat,
+  jumpingJack,
   kneePushUp,
   pushUp,
   RepDetector,
@@ -82,6 +83,16 @@ function lungeFrames(): PoseFrame[] {
 }
 
 describe('half squat', () => {
+  it("counts when the person's straight legs only read about 152° (side-on), learning their standing angle", () => {
+    const reps = run(new RepDetector(halfSquat), motion([152, 152, 115, 152, 115, 152, 115, 152], 15));
+    expect(reps.filter((r) => r.counted)).toHaveLength(3);
+  });
+
+  it('still ignores small wobbles when the standing angle is learned that low', () => {
+    const reps = run(new RepDetector(halfSquat), motion([152, 152, 145, 152, 144, 152, 146, 152], 15));
+    expect(reps).toHaveLength(0);
+  });
+
   it('counts squats that only go halfway', () => {
     const reps = run(new RepDetector(halfSquat), motion([175, 125, 175, 125, 175], 15));
     expect(reps.filter((r) => r.counted)).toHaveLength(2);
@@ -140,6 +151,24 @@ describe('lunge variations', () => {
   it('says which lunge the set is when someone squats instead', () => {
     const reps = run(new RepDetector(reverseLunge), motion([175, 85, 175], 15));
     expect(reps[0]!.cues[0]).toMatch(/one foot back/i);
+  });
+});
+
+describe('jumping feet', () => {
+  // Found on a real phone (2026-10-17): every jumping jack was rejected as "the camera moved",
+  // because the feet jumping apart looked like the whole picture shifting.
+  // The feet land wide (well past the shoulders) as soon as the arms start to rise, as in a real jack.
+  const jacks = (t: number, a: number) => figure(t, { knee: 178, armRaise: a, feetHalfWidth: a > 40 ? 0.24 : 0.08 });
+
+  it('counts jumping jacks whose feet jump apart and back', () => {
+    const reps = run(new RepDetector(jumpingJack), sweep([10, 170, 10, 170, 10, 170, 10], jacks, 10));
+    expect(reps.filter((r) => r.counted)).toHaveLength(3);
+    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/camera moved/i);
+  });
+
+  it('counts step jacks whose foot steps out and back', () => {
+    const reps = run(new RepDetector(stepJack), sweep([10, 170, 10, 170, 10, 170, 10], jacks, 15));
+    expect(reps.filter((r) => r.counted)).toHaveLength(3);
   });
 });
 

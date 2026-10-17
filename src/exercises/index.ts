@@ -63,6 +63,8 @@ export const jumpingJack: RepExercise = {
   minRepMs: 300,
   maxRepMs: 4000,
   upright: { maxTilt: 25 },
+  // The feet jump apart and back every rep, so moving feet aren't a sign the camera moved.
+  plantedFeet: false,
   required: ['leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow', 'leftHip', 'rightHip'],
 };
 

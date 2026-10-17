@@ -51,6 +51,18 @@ describe('lunge', () => {
     expect(detector.count).toBe(2);
   });
 
+  it('counts lunges facing the camera, where the knee gap looks smaller', () => {
+    // From the front the front thigh points at the camera, so the knees look closer in height:
+    // a real lunge facing the camera measured 0.39–0.54 of torso length (here ~0.45 at the bottom).
+    const frames = motion([175, 85, 175, 85, 175], 15).map((f, i, all) => {
+      const knee = 175 - (175 - 85) * Math.abs(Math.sin((Math.PI * i) / ((all.length - 1) / 2)));
+      return figure(f.t, { knee, lungeGap: (0.56 * (175 - knee)) / 90 });
+    });
+    const detector = new RepDetector(lunge);
+    for (const f of frames) detector.update(f);
+    expect(detector.count).toBe(2);
+  });
+
   it("doesn't count a squat during a lunge set", () => {
     const detector = new RepDetector(lunge);
     const results = motion([175, 85, 175], 15).map((f) => detector.update(f).rep).filter(Boolean);

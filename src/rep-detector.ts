@@ -10,8 +10,11 @@ const THIGH_REFERENCE_DECAY = 0.9995;
 const RAD_TO_DEG = 180 / Math.PI;
 /** If both feet move more than this fraction of leg length during one rep, the camera (or person) moved. */
 const MAX_FOOT_DRIFT = 0.3;
-/** Without visible feet: hip drift sideways, as a fraction of shoulder width. */
-const MAX_HIP_DRIFT = 0.8;
+/**
+ * Without visible feet: hip drift sideways, as a fraction of torso length. (It was shoulder width,
+ * which shrinks to almost nothing side-on, so a few pixels of hip sway read as the camera moving.)
+ */
+const MAX_HIP_DRIFT = 0.6;
 /**
  * People stand with different knee straightness (and the lite pose model under-reads straight legs),
  * so "back at the top" is set this far below the person's own standing angle.
@@ -25,8 +28,15 @@ const ANCHOR_FRAMES = 8;
 const FINISH_GRACE_MS = 1200;
 /** Share of bottom frames showing a lunge stance that makes the rep a lunge (lunge evidence is the reliable kind). */
 const STAGGERED_VOTE = 0.35;
+/**
+ * And at least this many such frames: side-on no frame votes "square", so without it one stray frame
+ * made a whole squat a lunge.
+ */
+const MIN_STAGGERED_FRAMES = 3;
 /** Keep at least this gap between the top and bottom lines, so wobbles never count. */
 const MIN_HYSTERESIS = 12;
+/** How far a person's own standing angle may pull the top line below the definition's. */
+const MAX_TOP_DROP = 30;
 
 /** `waiting`: not yet seen standing tall. `top`: between reps. `down`: inside a rep. */
 export type RepPhase = 'waiting' | 'top' | 'down';
@@ -79,7 +89,6 @@ interface Anchor {
   feet: [Point | null, Point | null];
   hips: Point | null;
   legLength: number;
-  shoulderWidth: number;
   /** Shoulder-centre to hip-centre length in the image: the ruler for stance. */
   torso: number;
   /** Ankle span over shoulder span while standing, or null when it can't be judged. */
@@ -153,11 +162,23 @@ export class RepDetector {
     return this.standingSamples.length < 5 ? null : percentile(this.standingSamples, 0.8);
   }
 
-  /** The angle that counts as standing tall again for this person. */
+  /**
+   * The angle that counts as standing tall again for this person: a little under their own standing
+   * angle, never above the definition's, and at most MAX_TOP_DROP below it.
+   */
   private topLine(): number {
-    const { top, bottom } = this.exercise.thresholds;
+    const { top } = this.exercise.thresholds;
     if (this.standingAngle === null) return top;
-    return Math.max(bottom + MIN_HYSTERESIS, Math.min(top, this.standingAngle - STANDING_MARGIN));
+    return Math.max(top - MAX_TOP_DROP, Math.min(top, this.standingAngle - STANDING_MARGIN));
+  }
+
+  /**
+   * Below this a rep starts. It moves down with the top line, keeping the gap that stops wobbles
+   * counting: seen side-on, straight legs can read ~150°, and a fixed bottom line of 148° (half
+   * squats) left no room, so no rep ever started.
+   */
+  private bottomLine(): number {
+    return Math.min(this.exercise.thresholds.bottom, this.topLine() - MIN_HYSTERESIS);
   }
 
   update(frame: PoseFrame): RepUpdate {
@@ -176,7 +197,7 @@ export class RepDetector {
       if (this.standingSamples.length > STANDING_WINDOW) this.standingSamples.shift();
     }
     const top = this.topLine();
-    const { bottom } = this.exercise.thresholds;
+    const bottom = this.bottomLine();
     // Reps may only start from a standing position, so lying down or random movement never counts.
     const standing = metric >= top && upright;
     let rep: RepResult | undefined;
@@ -267,7 +288,7 @@ export class RepDetector {
 
     const votes = this.stanceVotes.square + this.stanceVotes.staggered;
     if (stanceRule && votes > 0) {
-      const staggered = this.stanceVotes.staggered / votes >= STAGGERED_VOTE;
+      const staggered = this.stanceVotes.staggered >= MIN_STAGGERED_FRAMES && this.stanceVotes.staggered / votes >= STAGGERED_VOTE;
       if ((staggered ? 'staggered' : 'square') !== stanceRule.expect) noRep.push(stanceRule.cue);
     }
 
@@ -315,7 +336,6 @@ export class RepDetector {
       feet: [la, ra],
       hips,
       legLength: legs.length ? legs.reduce((a, b) => a + b, 0) / legs.length : 0,
-      shoulderWidth: ls && rs ? distance2d(ls, rs) : 0,
       torso: shoulders && lh && rh ? distance2d(shoulders, midpoint(lh, rh)) : 0,
       width: stanceWidth(frame, this.minVisibility),
     };
@@ -335,7 +355,6 @@ export class RepDetector {
       feet: [med(anchors.map((a) => a.feet[0])), med(anchors.map((a) => a.feet[1]))],
       hips: med(anchors.map((a) => a.hips)),
       legLength: num(anchors.map((a) => a.legLength)),
-      shoulderWidth: num(anchors.map((a) => a.shoulderWidth)),
       torso: num(anchors.map((a) => a.torso)),
       // Judged only when most standing frames could see it, so a few stray frames can't decide.
       width: widths.length * 2 >= anchors.length && widths.length > 0 ? percentile(widths, 0.5) : null,
@@ -344,7 +363,7 @@ export class RepDetector {
 
   /**
    * How far the body's base moved this frame, relative to its size: the less-moved foot over leg
-   * length, or with the feet hidden, sideways hip drift over shoulder width.
+   * length, or with the feet hidden, sideways hip drift over torso length.
    */
   private trackDrift(frame: PoseFrame): void {
     const ref = this.start;
@@ -353,9 +372,12 @@ export class RepDetector {
     const [a0, a1] = ref.feet;
     const [b0, b1] = now.feet;
     if (a0 && a1 && b0 && b1 && ref.legLength > 0) {
-      this.drifts.push(Math.min(distance2d(a0, b0), distance2d(a1, b1)) / ref.legLength / MAX_FOOT_DRIFT);
-    } else if (ref.hips && now.hips && ref.shoulderWidth > 0) {
-      this.drifts.push(Math.abs(now.hips.x - ref.hips.x) / ref.shoulderWidth / MAX_HIP_DRIFT);
+      // Facing the camera, the pose model sometimes swaps the left and right ankles for a frame; a
+      // swap isn't movement, so each foot is matched to whichever starting foot is nearer.
+      const moved = Math.min(distance2d(a0, b0), distance2d(a1, b1), distance2d(a0, b1), distance2d(a1, b0));
+      this.drifts.push(moved / ref.legLength / MAX_FOOT_DRIFT);
+    } else if (ref.hips && now.hips && ref.torso > 0) {
+      this.drifts.push(Math.abs(now.hips.x - ref.hips.x) / ref.torso / MAX_HIP_DRIFT);
     }
   }
 

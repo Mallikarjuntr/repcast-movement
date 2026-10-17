@@ -57,8 +57,19 @@ export function isLying(frame: PoseFrame, minTilt: number, minVisibility: number
   return false;
 }
 
-/** Knee height gap over standing torso length above which the stance is a lunge (tuned on real video). */
-export const STAGGERED_KNEE_GAP = 0.55;
+/**
+ * Knee height gap over standing torso length above which the stance is a lunge, when both legs can be
+ * seen. Measured at the bottom of reps (2026-10-17, replay bench): squats, half and sumo squats from the
+ * front, 45° and the side, real and rendered, stay at or under 0.3 in 94–100% of frames (median
+ * 0.02–0.06); real lunges are over 0.3 in ~60%, and a lunge facing the camera measured 0.39–0.54,
+ * which the old single cut-off of 0.55 called a squat.
+ */
+export const STAGGERED_KNEE_GAP = 0.3;
+/**
+ * The same, seen side-on, where the pose model can misplace the hidden leg: side-on squats never went
+ * over 0.45, side-on lunges did in 44–57% of bottom frames.
+ */
+export const STAGGERED_KNEE_GAP_SIDE_ON = 0.45;
 
 /**
  * Foot stance from the knees: in a lunge the back knee drops towards the floor, far below the front
@@ -69,10 +80,11 @@ export const STAGGERED_KNEE_GAP = 0.55;
 export function stance(frame: PoseFrame, minVisibility: number, standingTorso: number): 'square' | 'staggered' | null {
   if (standingTorso <= 0 || !isVisible(frame, 'leftKnee', minVisibility) || !isVisible(frame, 'rightKnee', minVisibility)) return null;
   const gap = Math.abs(frame.landmarks[POINT_INDEX.leftKnee]!.y - frame.landmarks[POINT_INDEX.rightKnee]!.y);
-  // A big gap is reliable from any angle. A small one only means "square" when both legs can be
+  // A big gap means a lunge from any angle. A small one only means "square" when both legs can be
   // seen: from the side the pose model often stacks the hidden leg on the visible one.
-  if (gap / standingTorso > STAGGERED_KNEE_GAP) return 'staggered';
-  return isSideOn(frame, minVisibility) === false ? 'square' : null;
+  const legsSeen = isSideOn(frame, minVisibility) === false;
+  if (gap / standingTorso > (legsSeen ? STAGGERED_KNEE_GAP : STAGGERED_KNEE_GAP_SIDE_ON)) return 'staggered';
+  return legsSeen ? 'square' : null;
 }
 
 /**

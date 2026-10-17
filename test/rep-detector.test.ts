@@ -121,6 +121,36 @@ describe('RepDetector with the squat definition', () => {
   });
 });
 
+describe('pose model glitches', () => {
+  it("doesn't call a little hip sway side-on, with the feet out of view, a camera move", () => {
+    // Found on real video (Commons "Squat and Frontal Raise"): side-on the shoulders look almost no
+    // width, and hip drift was measured against it.
+    const sway = (frame: PoseFrame, i: number): PoseFrame => {
+      const landmarks = frame.landmarks.map((p, k) => (k === 23 || k === 24 ? { ...p, x: p.x + 0.04 * Math.sin(i / 3) } : p));
+      return { ...frame, landmarks };
+    };
+    const side = { turn: 0.2, hideAnkles: true };
+    const standSide = (t0: number) => Array.from({ length: 10 }, (_, i) => figure(t0 + i * 40, { knee: 175, ...side }));
+    const frames = [...standSide(0), ...squatRep(80, 400, () => side), ...squatRep(80, 1900, () => side), ...standSide(3400)].map(sway);
+    const { reps, detector } = run(frames);
+    expect(detector.count).toBe(2);
+    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/camera moved/i);
+  });
+
+  it('ignores the left and right ankles swapping places, as seen facing the camera', () => {
+    const swap = (frame: PoseFrame, i: number): PoseFrame => {
+      if (i % 3 !== 0) return frame;
+      const landmarks = [...frame.landmarks];
+      [landmarks[27], landmarks[28]] = [landmarks[28]!, landmarks[27]!];
+      return { ...frame, landmarks };
+    };
+    const frames = [...stand(0), ...squatRep(80, 400), ...squatRep(80, 1900), ...stand(3400)].map(swap);
+    const { reps, detector } = run(frames);
+    expect(detector.count).toBe(2);
+    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/camera moved/i);
+  });
+});
+
 describe('the honest spotter: things that must not count', () => {
   it('never counts a person lying down, however the knees move', () => {
     const lying = motion([175, 70, 175, 70, 175, 70, 175], 15, { lying: true });
