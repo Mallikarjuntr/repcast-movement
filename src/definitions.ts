@@ -42,8 +42,11 @@ export interface RepExercise {
   };
   /** The rep starts below `bottom` and completes back above `top` (degrees). The gap prevents double counts. */
   thresholds: { top: number; bottom: number };
-  /** Deep enough at `target` or below; above `noRepAbove` the rep doesn't count. */
-  depth?: { target: number; cue: string; noRepAbove?: number; noRepCue?: string };
+  /**
+   * Deep enough at `target` or below; above `noRepAbove` the rep doesn't count. Below `noRepBelow`
+   * it went too deep to be this move (a full squat in a set of half squats) and doesn't count either.
+   */
+  depth?: { target: number; cue: string; noRepAbove?: number; noRepCue?: string; noRepBelow?: number; tooDeepCue?: string };
   /** Faster than this is noise, not a rep (ignored silently). */
   minRepMs?: number;
   /** Slower than this isn't one rep (ignored silently). */
@@ -63,8 +66,20 @@ export interface RepExercise {
    * or person moved, so the rep doesn't count. Set false for stepping moves like forward lunges.
    */
   plantedFeet?: boolean;
-  /** Foot stance expected at the bottom: feet side by side (squat) or one forward (lunge). */
+  /**
+   * Foot stance expected at the bottom: feet side by side (squat) or one forward (lunge), from the
+   * knee heights. Only used when the feet can't be followed (see `footwork`).
+   */
   stance?: { expect: 'square' | 'staggered'; cue: string };
+  /**
+   * What the feet do during a rep, from where they started: `squat` (planted side by side),
+   * `planted` (planted in a split stance), or one foot stepping `forward`, `back`, or back and
+   * `across` (curtsy). `cues` say what to do when the feet did something else; a rep whose footwork
+   * can't be seen clearly keeps the benefit of the doubt.
+   */
+  footwork?: { expect: FootKey; cues: Partial<Record<FootKey, string>> };
+  /** Jacks: how many feet step out as the arms go up (1 for step jacks, 2 for jumping jacks); `cues` by the number seen. */
+  feetOut?: { expect: 1 | 2; cues: Partial<Record<0 | 1 | 2, string>> };
   /**
    * How wide the feet must be, as ankle span over shoulder span while standing at the start of the
    * rep (see `stanceWidth`). Below `min` the coach asks for wider feet; below `noRepBelow` the rep
@@ -80,6 +95,8 @@ export interface RepExercise {
 export type HoldTarget =
   | { measure: 'joint'; joint: JointName; pick?: Pick; angle: number; tolerance: number; cue: string }
   | { measure: 'torso-tilt'; angle: number; tolerance: number; cue: string };
+
+export type FootKey = 'squat' | 'planted' | 'forward' | 'back' | 'across';
 
 /**
  * A static pose held over time (plank, yoga asanas, balance tests). The hold counts while every

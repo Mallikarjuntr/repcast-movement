@@ -22,6 +22,8 @@ export interface FigureOptions {
   feetHalfWidth?: number;
   /** Camera turned away from facing: shrinks every sideways distance in the image (0.7 ≈ 45°, 0.2 ≈ side-on). */
   turn?: number;
+  /** Move an ankle in the picture by [dx, dy] (a step: +dy is towards the camera, -dy away). */
+  ankleShift?: { left?: [number, number]; right?: [number, number] };
 }
 
 const SHIN = 0.2;
@@ -74,6 +76,12 @@ export function figure(t: number, opts: FigureOptions): PoseFrame {
       const p = landmarks[POINTS[name]]!;
       landmarks[POINTS[name]] = { ...p, y: p.y + opts.lungeGap * THIGH };
     }
+  }
+  for (const side of ['left', 'right'] as const) {
+    const shift = opts.ankleShift?.[side];
+    if (!shift) continue;
+    const p = landmarks[POINTS[`${side}Ankle`]]!;
+    landmarks[POINTS[`${side}Ankle`]] = { ...p, x: p.x + shift[0], y: p.y + shift[1] };
   }
   if (opts.turn !== undefined) {
     for (let i = 0; i < landmarks.length; i++) {

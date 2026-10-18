@@ -13,6 +13,10 @@ export const POINTS = {
   rightKnee: 26,
   leftAnkle: 27,
   rightAnkle: 28,
+  leftHeel: 29,
+  rightHeel: 30,
+  leftToe: 31,
+  rightToe: 32,
 } as const;
 
 export type PointName = keyof typeof POINTS;

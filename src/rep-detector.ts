@@ -1,5 +1,7 @@
 import { gradeCheck, type CheckId, type Severity } from './checks.js';
 import type { RepExercise } from './definitions.js';
+import { feetAnchor, feetFrame, feetOut, footPattern, SPLIT, STEP, type FeetAnchor, type FeetFrame } from './footwork.js';
+import type { FootKey } from './definitions.js';
 import { DEFAULT_MIN_VISIBILITY, distance2d, imagePoint, isVisible, midpoint } from './geometry.js';
 import { SIDES, type PointName } from './landmarks.js';
 import { isLying, isUpright, jointAngles, pick, stance, stanceWidth } from './measures.js';
@@ -24,6 +26,8 @@ const STANDING_MARGIN = 10;
 const STANDING_WINDOW = 90;
 /** Standing frames averaged for the feet's starting position, so one jittery frame can't skew it. */
 const ANCHOR_FRAMES = 8;
+/** Standing time looked back over for where the feet started a rep. */
+const FEET_ANCHOR_MS = 1500;
 /** After the legs straighten, how long the torso may take to come upright before the rep is judged. */
 const FINISH_GRACE_MS = 1200;
 /** Share of bottom frames showing a lunge stance that makes the rep a lunge (lunge evidence is the reliable kind). */
@@ -33,6 +37,8 @@ const STAGGERED_VOTE = 0.35;
  * made a whole squat a lunge.
  */
 const MIN_STAGGERED_FRAMES = 3;
+/** Frame gap the smoothing factor is given for (15 frames a second). */
+const REFERENCE_FRAME_MS = 1000 / 15;
 /** Keep at least this gap between the top and bottom lines, so wobbles never count. */
 const MIN_HYSTERESIS = 12;
 /** How far a person's own standing angle may pull the top line below the definition's. */
@@ -63,6 +69,21 @@ export interface RepResult {
   depthOk: boolean | null;
   faults: Fault[];
   durationMs: number;
+  /** What the feet did at the bottom of the rep (medians), or null when the ankles weren't seen. */
+  feet: FeetSummary | null;
+}
+
+/** Footwork over the bottom of a rep: medians of the per-frame measures (see FeetFrame). */
+export interface FeetSummary {
+  step: number;
+  still: number;
+  ahead: number;
+  across: number | null;
+  out: [number, number] | null;
+  /** How far one foot stood in front of the other before the rep (split stance), over leg length. */
+  split: number;
+  /** Bottom frames that saw both ankles. */
+  frames: number;
 }
 
 export interface RepUpdate {
@@ -107,10 +128,15 @@ export class RepDetector {
   private start: Anchor | null = null;
   /** Recent standing frames, for a steady starting anchor. */
   private topFrames: PoseFrame[] = [];
+  /** A longer run of standing frames for where the feet started (people step out before they bend). */
+  private feetFramesAtTop: PoseFrame[] = [];
   /** Per-frame drift during the current rep (feet or hips), judged by a percentile to ignore jitter. */
   private drifts: number[] = [];
   /** Stance seen on each bottom frame of the current rep. */
   private stanceVotes = { square: 0, staggered: 0 };
+  /** Where the feet stood when the rep started, and what they did on each bottom frame. */
+  private feetStart: FeetAnchor | null = null;
+  private feetFrames: FeetFrame[] = [];
   /** When the legs got back above the top line during this rep (waiting for the torso to follow). */
   private legsUpAt: number | null = null;
   /** Tallest recent hip-to-knee vertical drop in the image, i.e. the thigh while standing. */
@@ -119,6 +145,7 @@ export class RepDetector {
   private standingSamples: number[] = [];
   private readonly smoothing: number;
   private readonly minVisibility: number;
+  private lastT: number | null = null;
 
   constructor(
     readonly exercise: RepExercise,
@@ -134,19 +161,21 @@ export class RepDetector {
   }
 
   /** Internal measurements, for tuning tools and test benches. */
-  diagnostics(): { standingAngle: number | null; topLine: number; drift: number | null; staggeredShare: number | null } {
+  diagnostics(): { standingAngle: number | null; topLine: number; drift: number | null; staggeredShare: number | null; feet: FeetSummary | null } {
     const votes = this.stanceVotes.square + this.stanceVotes.staggered;
     return {
       standingAngle: this.standingAngle,
       topLine: this.topLine(),
       drift: this.drifts.length ? percentile(this.drifts, 0.7) : null,
       staggeredShare: votes ? this.stanceVotes.staggered / votes : null,
+      feet: this.feetSummary(),
     };
   }
 
   reset(): void {
     this.phase = 'waiting';
     this.smoothed = null;
+    this.lastT = null;
     this.reps = 0;
     this.lowest = Infinity;
     this.lowestFrame = null;
@@ -155,6 +184,7 @@ export class RepDetector {
     this.thighReference = 0;
     this.standingSamples = [];
     this.topFrames = [];
+    this.feetFramesAtTop = [];
   }
 
   /** The person's own standing angle: the 80th percentile of recent upright frames. */
@@ -189,7 +219,13 @@ export class RepDetector {
       return { metric: this.smoothed, phase: this.phase, missing, usingFallback: false };
     }
 
-    this.smoothed = this.smoothed === null ? measured.value : this.smoothed + this.smoothing * (measured.value - this.smoothed);
+    // The smoothing was tuned at 15 frames a second. On a slower phone (7 fps) the frames are
+    // further apart, so each one counts for more; otherwise the smoothed angle lags behind a fast
+    // move like a jumping jack and the rep never reaches the bottom line. Faster phones are unchanged.
+    const gap = this.lastT === null ? REFERENCE_FRAME_MS : Math.min(500, Math.max(1, frame.t - this.lastT));
+    this.lastT = frame.t;
+    const alpha = Math.max(this.smoothing, 1 - (1 - this.smoothing) ** (gap / REFERENCE_FRAME_MS));
+    this.smoothed = this.smoothed === null ? measured.value : this.smoothed + alpha * (measured.value - this.smoothed);
     const metric = this.smoothed;
     const upright = this.isStanding(frame);
     if (upright && this.phase !== 'down') {
@@ -215,6 +251,8 @@ export class RepDetector {
           this.lowest = metric;
           this.lowestFrame = frame;
           this.start = this.steadyAnchor();
+          this.feetStart = feetAnchor(this.feetFramesAtTop, this.minVisibility);
+          this.feetFrames = [];
           this.drifts = [];
           this.stanceVotes = { square: 0, staggered: 0 };
           this.legsUpAt = null;
@@ -225,6 +263,8 @@ export class RepDetector {
         if (metric < bottom) {
           const seen = stance(frame, this.minVisibility, this.start?.torso ?? 0);
           if (seen) this.stanceVotes[seen] += 1;
+          const feet = this.feetStart ? feetFrame(this.feetStart, frame, this.minVisibility) : null;
+          if (feet) this.feetFrames.push(feet);
         }
         if (metric < this.lowest) {
           this.lowest = metric;
@@ -267,6 +307,8 @@ export class RepDetector {
     this.lastTopFrame = frame;
     this.topFrames.push(frame);
     if (this.topFrames.length > ANCHOR_FRAMES) this.topFrames.shift();
+    this.feetFramesAtTop.push(frame);
+    while (this.feetFramesAtTop.length > 1 && frame.t - this.feetFramesAtTop[0]!.t > FEET_ANCHOR_MS) this.feetFramesAtTop.shift();
   }
 
   private judgeRep(durationMs: number, endedStanding: boolean): RepResult {
@@ -287,13 +329,41 @@ export class RepDetector {
     }
 
     const votes = this.stanceVotes.square + this.stanceVotes.staggered;
-    if (stanceRule && votes > 0) {
-      const staggered = this.stanceVotes.staggered >= MIN_STAGGERED_FRAMES && this.stanceVotes.staggered / votes >= STAGGERED_VOTE;
-      if ((staggered ? 'staggered' : 'square') !== stanceRule.expect) noRep.push(stanceRule.cue);
+    const kneesStaggered = votes > 0 ? this.stanceVotes.staggered >= MIN_STAGGERED_FRAMES && this.stanceVotes.staggered / votes >= STAGGERED_VOTE : null;
+    const feet = this.feetSummary();
+    const pattern = footPattern(feet);
+    const footRule = this.exercise.footwork;
+    if (footRule && feet) {
+      // The feet are the better witness: a foot that stepped settles lunge against squat. Planted
+      // feet are a split stance if they started one in front of the other; for split squats the
+      // knee heights may say so too (facing the camera the split is foreshortened), but squats only
+      // trust the feet, as the knee gap misread real squats as lunges. A step whose direction isn't
+      // clear is still a step: a lunge of some kind, never a squat or split squat.
+      const split = feet.split >= SPLIT || (footRule.expect !== 'squat' && kneesStaggered === true);
+      const stepped = pattern === 'unknown' && feet.step >= STEP;
+      const seen: FootKey | null = pattern === 'planted' ? (split ? 'planted' : 'squat') : pattern === 'unknown' ? null : pattern;
+      if (seen) {
+        const ok = seen === footRule.expect || (footRule.expect === 'back' && seen === 'across') || (footRule.expect === 'across' && seen === 'back' && feet.across === null);
+        const cue = footRule.cues[seen];
+        if (!ok && cue) noRep.push(cue);
+      } else if (stepped && (footRule.expect === 'squat' || footRule.expect === 'planted')) {
+        const cue = footRule.cues.forward ?? footRule.cues.back;
+        if (cue) noRep.push(cue);
+      }
+    } else if (stanceRule && kneesStaggered !== null) {
+      if ((kneesStaggered ? 'staggered' : 'square') !== stanceRule.expect) noRep.push(stanceRule.cue);
+    }
+
+    const jacks = this.exercise.feetOut;
+    const out = jacks ? feetOut(feet) : null;
+    if (jacks && out !== null && out !== jacks.expect) {
+      const cue = jacks.cues[out];
+      if (cue) noRep.push(cue);
     }
 
     if (depth) {
       if (depth.noRepAbove !== undefined && this.lowest > depth.noRepAbove) noRep.push(depth.noRepCue ?? depth.cue);
+      else if (depth.noRepBelow !== undefined && this.lowest < depth.noRepBelow) noRep.push(depth.tooDeepCue ?? depth.cue);
       else if (this.lowest > depth.target) fixes.push(depth.cue);
     }
 
@@ -317,6 +387,24 @@ export class RepDetector {
       depthOk: depth ? this.lowest <= depth.target : null,
       faults,
       durationMs,
+      feet: this.feetSummary(),
+    };
+  }
+
+  private feetSummary(): FeetSummary | null {
+    const all = this.feetFrames;
+    if (all.length === 0) return null;
+    const mid = (xs: number[]) => percentile(xs, 0.5);
+    const across = all.map((f) => f.across).filter((x): x is number => x !== null);
+    const out = all.map((f) => f.out).filter((x): x is [number, number] => x !== null);
+    return {
+      step: mid(all.map((f) => f.step)),
+      still: mid(all.map((f) => f.still)),
+      ahead: mid(all.map((f) => f.ahead)),
+      across: across.length * 2 >= all.length ? mid(across) : null,
+      out: out.length * 2 >= all.length ? [mid(out.map((o) => o[0])), mid(out.map((o) => o[1]))] : null,
+      split: this.feetStart?.split ?? 0,
+      frames: all.length,
     };
   }
 

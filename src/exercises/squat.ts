@@ -20,6 +20,15 @@ export const squat: RepExercise = {
   maxRepMs: 8000,
   upright: { maxTilt: 30 },
   stance: { expect: 'square', cue: "That's a lunge — this set is squats, feet side by side" },
+  footwork: {
+    expect: 'squat',
+    cues: {
+      planted: "That's a lunge — this set is squats, feet side by side",
+      forward: "That's a lunge — this set is squats, feet side by side",
+      back: "That's a lunge — this set is squats, feet side by side",
+      across: "That's a lunge — this set is squats, feet side by side",
+    },
+  },
   checks: [
     { id: 'knees-caving', cue: 'Push your knees out', warn: 0.75, fail: 0.55, failCue: "Knees caved in too far — that one doesn't count" },
     { id: 'chest-dropping', cue: 'Keep your chest up', warn: 55, fail: 72, failCue: "Chest dropped too far — that one doesn't count" },

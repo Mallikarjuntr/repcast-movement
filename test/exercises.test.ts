@@ -40,12 +40,23 @@ function hold(detector: HoldDetector, makeFrame: (t: number) => PoseFrame, secon
   return updates;
 }
 
+/**
+ * A forward lunge facing the camera: the left foot steps towards the camera (down the picture) as
+ * the knees bend, the right (back) knee drops towards the floor, and the foot steps home at the top.
+ */
+function forwardLunge(gap: number) {
+  return motion([175, 85, 175, 85, 175], 15).map((f, i, all) => {
+    const knee = 175 - (175 - 85) * Math.abs(Math.sin((Math.PI * i) / ((all.length - 1) / 2)));
+    const drop = (gap * (175 - knee)) / 90;
+    const step = 0.12 * Math.min(1, (175 - knee) / 30);
+    // lungeGap lowers the back ankle with its knee; keep that foot planted.
+    return figure(f.t, { knee, lungeGap: drop, ankleShift: { left: [0, step], right: [0, -drop * 0.2] } });
+  });
+}
+
 describe('lunge', () => {
   it('counts lunges with one knee dropping towards the floor', () => {
-    const frames = motion([175, 85, 175, 85, 175], 15).map((f, i, all) => {
-      const knee = 175 - (175 - 85) * Math.abs(Math.sin((Math.PI * i) / ((all.length - 1) / 2)));
-      return figure(f.t, { knee, lungeGap: (1.1 * (175 - knee)) / 90 });
-    });
+    const frames = forwardLunge(1.1);
     const detector = new RepDetector(lunge);
     for (const f of frames) detector.update(f);
     expect(detector.count).toBe(2);
@@ -54,10 +65,7 @@ describe('lunge', () => {
   it('counts lunges facing the camera, where the knee gap looks smaller', () => {
     // From the front the front thigh points at the camera, so the knees look closer in height:
     // a real lunge facing the camera measured 0.39–0.54 of torso length (here ~0.45 at the bottom).
-    const frames = motion([175, 85, 175, 85, 175], 15).map((f, i, all) => {
-      const knee = 175 - (175 - 85) * Math.abs(Math.sin((Math.PI * i) / ((all.length - 1) / 2)));
-      return figure(f.t, { knee, lungeGap: (0.56 * (175 - knee)) / 90 });
-    });
+    const frames = forwardLunge(0.56);
     const detector = new RepDetector(lunge);
     for (const f of frames) detector.update(f);
     expect(detector.count).toBe(2);
@@ -72,16 +80,28 @@ describe('lunge', () => {
 });
 
 describe('jumping jack', () => {
-  it('counts arm sweeps from the sides to overhead', () => {
+  const sweeps = (feetOut: boolean) => {
     const frames: PoseFrame[] = [];
     let t = 0;
     for (const [from, to] of [[10, 170], [170, 10], [10, 170], [170, 10], [10, 170], [170, 10]] as const) {
       for (let s = 0; s <= 10; s++) {
-        frames.push(figure(t, { knee: 178, armRaise: from + ((to - from) * s) / 10 }));
+        const a = from + ((to - from) * s) / 10;
+        frames.push(figure(t, { knee: 178, armRaise: a, feetHalfWidth: feetOut && a > 40 ? 0.24 : 0.08 }));
         t += 33;
       }
     }
-    expect(countReps(new RepDetector(jumpingJack), frames)).toBe(3);
+    return frames;
+  };
+
+  it('counts arms sweeping from the sides to overhead as the feet jump out', () => {
+    expect(countReps(new RepDetector(jumpingJack), sweeps(true))).toBe(3);
+  });
+
+  it("doesn't count arm sweeps when the feet stay together, and says why", () => {
+    const detector = new RepDetector(jumpingJack);
+    const reps = sweeps(false).map((f) => detector.update(f).rep).filter(Boolean);
+    expect(detector.count).toBe(0);
+    expect(reps[0]!.cues[0]).toMatch(/feet out/i);
   });
 
   it('ignores half arm raises', () => {

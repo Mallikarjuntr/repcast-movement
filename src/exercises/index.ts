@@ -20,17 +20,36 @@ export const lunge: RepExercise = {
   upright: { maxTilt: 30 },
   plantedFeet: false,
   stance: { expect: 'staggered', cue: 'Step one foot forward — that was a squat, this set is lunges' },
+  // One foot steps forward and back each rep (walking lunges too: the step is judged from where it started).
+  footwork: {
+    expect: 'forward',
+    cues: {
+      squat: 'Step one foot forward — that was a squat, this set is lunges',
+      planted: 'Step forward into each lunge — that was a split squat',
+      back: 'Step forward, not back — that was a reverse lunge',
+      across: 'Step forward, not back — that was a reverse lunge',
+    },
+  },
   checks: [{ id: 'chest-dropping', cue: 'Keep your chest tall', warn: 40, fail: 60, failCue: "Leaned too far forward — that one doesn't count" }],
   required: ['leftHip', 'rightHip', 'leftKnee', 'rightKnee'],
 };
 
-/** Only halfway down, kinder to tight knees: going deeper is fine, barely bending isn't a rep. */
+/**
+ * Only halfway down, kinder to tight knees. Barely bending isn't a rep, and neither is a full squat.
+ * Measured: a phone test's half squats 106–137° and full squats in the same set 51–55°; a real
+ * half-squat demo 72–97°; real full squats 39–60°. So under 66° it was the other move.
+ */
 export const halfSquat: RepExercise = {
   ...squat,
   id: 'half-squat',
   name: 'Half squat',
   thresholds: { top: 160, bottom: 148 },
-  depth: { target: 135, cue: 'Bend a little more — about halfway down' },
+  depth: {
+    target: 135,
+    cue: 'Bend a little more — about halfway down',
+    noRepBelow: 66,
+    tooDeepCue: 'That was a full squat — this set is half squats, stop about halfway down',
+  },
 };
 
 /** Feet wide, toes out; the knees still track over the toes. */
@@ -65,6 +84,14 @@ export const jumpingJack: RepExercise = {
   upright: { maxTilt: 25 },
   // The feet jump apart and back every rep, so moving feet aren't a sign the camera moved.
   plantedFeet: false,
+  // Both feet jump out as the arms go up (judged only when the feet and their sideways movement can be seen).
+  feetOut: {
+    expect: 2,
+    cues: {
+      1: 'Jump both feet out together — that was a step jack',
+      0: 'Jump your feet out wide as your arms go up',
+    },
+  },
   required: ['leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow', 'leftHip', 'rightHip'],
 };
 
@@ -74,6 +101,14 @@ export const reverseLunge: RepExercise = {
   id: 'reverse-lunge',
   name: 'Reverse lunge',
   stance: { expect: 'staggered', cue: 'Step one foot back — that was a squat, this set is lunges' },
+  footwork: {
+    expect: 'back',
+    cues: {
+      squat: 'Step one foot back — that was a squat, this set is reverse lunges',
+      planted: 'Step back into each lunge — that was a split squat',
+      forward: 'Step back, not forward — that was a forward lunge',
+    },
+  },
 };
 
 /** Feet stay where they are, one forward and one back: straight down and up. */
@@ -83,6 +118,15 @@ export const splitSquat: RepExercise = {
   name: 'Split squat',
   plantedFeet: true,
   stance: { expect: 'staggered', cue: 'Keep one foot forward and one back — this set is split squats' },
+  footwork: {
+    expect: 'planted',
+    cues: {
+      squat: 'Keep one foot forward and one back — this set is split squats',
+      forward: "Keep your feet where they are — that was a lunge, this set is split squats",
+      back: "Keep your feet where they are — that was a lunge, this set is split squats",
+      across: "Keep your feet where they are — that was a lunge, this set is split squats",
+    },
+  },
 };
 
 /** Step back and across, like a curtsy; judged like a lunge. */
@@ -91,6 +135,16 @@ export const curtsyLunge: RepExercise = {
   id: 'curtsy-lunge',
   name: 'Curtsy lunge',
   stance: { expect: 'staggered', cue: 'Step one foot back and across — this set is curtsy lunges' },
+  // Back and across, behind the front leg. Side-on the crossing can't be seen, so a step back counts.
+  footwork: {
+    expect: 'across',
+    cues: {
+      squat: 'Step one foot back and across — this set is curtsy lunges',
+      planted: 'Step back and across into each lunge — this set is curtsy lunges',
+      forward: 'Step back and across, not forward — this set is curtsy lunges',
+      back: 'Cross your back foot behind your front leg — that was a reverse lunge',
+    },
+  },
 };
 
 /** A jumping jack without the jump: one foot steps out as the arms go up. A little slower. */
@@ -100,6 +154,13 @@ export const stepJack: RepExercise = {
   name: 'Step jack',
   minRepMs: 500,
   maxRepMs: 5000,
+  feetOut: {
+    expect: 1,
+    cues: {
+      2: 'One foot at a time, no jump — that was a jumping jack',
+      0: 'Step one foot out to the side as your arms go up',
+    },
+  },
 };
 
 /**

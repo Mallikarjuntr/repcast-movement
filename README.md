@@ -23,6 +23,19 @@ Every rep attempt gets a verdict instead of a blind count:
 
 Built-in gates stop false reps: reps only start from an upright standing position, the feet must stay planted in moves where they should (otherwise the phone or person moved), and attempts that are too fast or too slow are ignored.
 
+### Telling look-alike moves apart
+
+Several moves look the same at the bottom of the rep, so the engine also follows **what the feet did** (`footwork` and `feetOut` in a definition). It remembers where the feet stood before the rep (from the standing frames with the feet closest together, since people step out before they bend) and, at the bottom, which foot moved, how far, and where it ended:
+
+- **Forward or back:** at the bottom of any lunge the front knee is up near hip height and the back knee down near the floor, from any camera angle. So if the foot that moved has the higher knee, it stepped forward (a lunge); if the lower, it stepped back (a reverse lunge).
+- **Across:** facing the camera, a back foot that ends behind and past the other one is a curtsy lunge (side-on that can't be seen, so a step back counts).
+- **Planted:** neither foot moved is a squat, or a split squat when the feet started one in front of the other.
+- **Out:** in jacks, both feet stepping out sideways is a jumping jack; one foot is a step jack.
+
+A rep whose feet can't be seen clearly keeps the benefit of the doubt. A wrong move doesn't count, and the cue says what it was: *"Step forward, not back — that was a reverse lunge"*, *"Keep your feet where they are — that was a lunge, this set is split squats"*, *"One foot at a time, no jump — that was a jumping jack"*. Half squats also refuse a full squat (*"That was a full squat — this set is half squats"*).
+
+Smoothing is set for 15 frames a second and speeds up on slower phones, so a phone managing 7 fps still keeps up with fast moves like jumping jacks.
+
 ### Wherever the phone is
 
 People prop their phone wherever it fits, so the engine is checked from the front, at 45° and side-on, on real recordings and on a rendered 3D trainer seen from all three angles (see `docs/TESTING.md` §9 in [spotter-tv-app](https://github.com/Mallikarjuntr/spotter-tv-app)). That found and fixed five view problems, each with a test here:
@@ -73,8 +86,16 @@ const { holding, heldMs, completed, offTarget, faults, wobble } = hold.update(fr
 | Exercise | Type | Checks |
 |---|---|---|
 | `squat` | rep | depth (no rep above 120°), knees caving in, chest dropping, feet side by side; keeps counting when the feet are out of frame |
-| `lunge` | rep | depth, chest dropping, one foot forward |
-| `jumpingJack` | rep | full arm sweep |
+| `halfSquat` | rep | halfway depth: not too shallow, and not a full squat |
+| `sumoSquat` | rep | depth and a wide stance |
+| `lunge` | rep | depth, chest dropping, one foot steps forward |
+| `reverseLunge` | rep | as lunge, one foot steps back |
+| `splitSquat` | rep | as lunge, feet stay put in a split stance |
+| `curtsyLunge` | rep | as lunge, the back foot steps behind and across |
+| `jumpingJack` | rep | full arm sweep, both feet jump out |
+| `stepJack` | rep | full arm sweep, one foot steps out |
+| `pushUp`, `kneePushUp` | rep | elbow depth lying down; hips sagging or piking (push-up) |
+| `gluteBridge` | rep | hips lifted into one line, lying down |
 | `plank` | hold | straight body line, hips sagging, hips piking |
 | `treePose` (Vrikshasana) | hold | standing leg straight, foot lifted, hips level, wobble |
 

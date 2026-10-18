@@ -6,6 +6,7 @@ import {
   halfSquat,
   jumpingJack,
   kneePushUp,
+  lunge,
   pushUp,
   RepDetector,
   reverseLunge,
@@ -142,10 +143,62 @@ describe('sumo squat', () => {
   });
 });
 
+/**
+ * Two reps of a lunge-family move facing the camera, with the feet doing what the move does:
+ * forward (left foot steps towards the camera), back (right foot steps away), across (right foot
+ * steps away and behind the left), split (feet stay one forward, one back), or squat (feet stay side
+ * by side). The back knee drops towards the floor in all but the squat.
+ */
+function lungeMove(kind: 'forward' | 'back' | 'across' | 'split' | 'squat'): PoseFrame[] {
+  // Stand, two reps with a moment standing between them (as people do), stand.
+  const knees = [175, 175, 175, 175, 175, 175, 175, 175];
+  for (let rep = 0; rep < 2; rep++) {
+    for (let i = 1; i <= 30; i++) knees.push(175 - 90 * Math.sin((Math.PI * i) / 30));
+    knees.push(175, 175, 175, 175, 175, 175, 175, 175);
+  }
+  return knees.map((knee, i) => {
+    const t = i * 33;
+    if (kind === 'squat') return figure(t, { knee });
+    const drop = (1.1 * (175 - knee)) / 90;
+    const step = 0.16 * Math.min(1, (175 - knee) / 30);
+    const plant = -drop * 0.2; // lungeGap lowers the back ankle with its knee; undo that
+    const shift: Record<typeof kind, { left?: [number, number]; right?: [number, number] }> = {
+      forward: { left: [0, step], right: [0, plant] },
+      back: { right: [0, plant - step] },
+      across: { right: [-0.2 * Math.min(1, (175 - knee) / 30), plant - step] },
+      split: { left: [0, 0.1], right: [0, plant - 0.1] },
+    };
+    return figure(t, { knee, lungeGap: drop, ankleShift: shift[kind] });
+  });
+}
+
 describe('lunge variations', () => {
-  it.each([reverseLunge, splitSquat, curtsyLunge])('$name counts a staggered stance', (exercise) => {
-    const reps = run(new RepDetector(exercise), lungeFrames());
-    expect(reps.filter((r) => r.counted)).toHaveLength(2);
+  it.each([
+    [lunge, 'forward'],
+    [reverseLunge, 'back'],
+    [reverseLunge, 'across'],
+    [splitSquat, 'split'],
+    [curtsyLunge, 'across'],
+    [squat, 'squat'],
+  ] as const)('$name counts its own footwork (%s)', (exercise, kind) => {
+    const reps = run(new RepDetector(exercise), lungeMove(kind));
+    expect(reps.map((r) => r.verdict)).toEqual(['good', 'good']);
+  });
+
+  it.each([
+    [lunge, 'back', /not back — that was a reverse lunge/i],
+    [lunge, 'split', /that was a split squat/i],
+    [reverseLunge, 'forward', /not forward — that was a forward lunge/i],
+    [splitSquat, 'forward', /keep your feet where they are/i],
+    [splitSquat, 'back', /keep your feet where they are/i],
+    [curtsyLunge, 'back', /cross your back foot behind/i],
+    [curtsyLunge, 'forward', /not forward/i],
+    [squat, 'forward', /that's a lunge/i],
+    [squat, 'split', /that's a lunge/i],
+  ] as const)('%s: refuses a %s lunge and says which move it was', (exercise, kind, cue) => {
+    const reps = run(new RepDetector(exercise), lungeMove(kind));
+    expect(reps.map((r) => r.counted)).toEqual([false, false]);
+    expect(reps[0]!.cues[0]).toMatch(cue);
   });
 
   it('says which lunge the set is when someone squats instead', () => {
@@ -159,6 +212,8 @@ describe('jumping feet', () => {
   // because the feet jumping apart looked like the whole picture shifting.
   // The feet land wide (well past the shoulders) as soon as the arms start to rise, as in a real jack.
   const jacks = (t: number, a: number) => figure(t, { knee: 178, armRaise: a, feetHalfWidth: a > 40 ? 0.24 : 0.08 });
+  // A step jack: only the left foot steps out to the side.
+  const stepJacks = (t: number, a: number) => figure(t, { knee: 178, armRaise: a, ankleShift: { left: [a > 40 ? -0.16 : 0, 0] } });
 
   it('counts jumping jacks whose feet jump apart and back', () => {
     const reps = run(new RepDetector(jumpingJack), sweep([10, 170, 10, 170, 10, 170, 10], jacks, 10));
@@ -167,15 +222,26 @@ describe('jumping feet', () => {
   });
 
   it('counts step jacks whose foot steps out and back', () => {
-    const reps = run(new RepDetector(stepJack), sweep([10, 170, 10, 170, 10, 170, 10], jacks, 15));
+    const reps = run(new RepDetector(stepJack), sweep([10, 170, 10, 170, 10, 170, 10], stepJacks, 15));
     expect(reps.filter((r) => r.counted)).toHaveLength(3);
+  });
+
+  it('tells jumping jacks and step jacks apart', () => {
+    const asStep = run(new RepDetector(stepJack), sweep([10, 170, 10, 170, 10], jacks, 15));
+    expect(asStep.map((r) => r.counted)).toEqual([false, false]);
+    expect(asStep[0]!.cues[0]).toMatch(/one foot at a time/i);
+    const asJump = run(new RepDetector(jumpingJack), sweep([10, 170, 10, 170, 10], stepJacks, 10));
+    expect(asJump.map((r) => r.counted)).toEqual([false, false]);
+    expect(asJump[0]!.cues[0]).toMatch(/both feet/i);
   });
 });
 
 describe('step jack', () => {
-  it('counts arm sweeps like a jumping jack', () => {
+  it("doesn't count arm sweeps when no foot steps out", () => {
     const frames = sweep([10, 170, 10, 170, 10, 170, 10], (t, a) => figure(t, { knee: 178, armRaise: a }), 10);
-    expect(run(new RepDetector(stepJack), frames).filter((r) => r.counted)).toHaveLength(3);
+    const reps = run(new RepDetector(stepJack), frames);
+    expect(reps.filter((r) => r.counted)).toHaveLength(0);
+    expect(reps[0]!.cues[0]).toMatch(/step one foot out/i);
   });
 });
 
