@@ -189,16 +189,23 @@ describe('lunge variations', () => {
     [lunge, 'back', /not back — that was a reverse lunge/i],
     [lunge, 'split', /that was a split squat/i],
     [reverseLunge, 'forward', /not forward — that was a forward lunge/i],
-    [splitSquat, 'forward', /keep your feet where they are/i],
-    [splitSquat, 'back', /keep your feet where they are/i],
     [curtsyLunge, 'back', /cross your back foot behind/i],
     [curtsyLunge, 'forward', /not forward/i],
     [squat, 'forward', /that's a lunge/i],
-    [squat, 'split', /that's a lunge/i],
   ] as const)('%s: refuses a %s lunge and says which move it was', (exercise, kind, cue) => {
     const reps = run(new RepDetector(exercise), lungeMove(kind));
     expect(reps.map((r) => r.counted)).toEqual([false, false]);
     expect(reps[0]!.cues[0]).toMatch(cue);
+  });
+
+  it("doesn't call planted feet a lunge in a squat set: the split-stance reading is unreliable at an angle", () => {
+    const reps = run(new RepDetector(squat), lungeMove('split'));
+    expect(reps.every((r) => !r.cues.some((c) => /lunge/i.test(c)))).toBe(true);
+  });
+
+  it.each(['forward', 'back'] as const)("doesn't call a %s lunge in a split-squat set: side-on the two can't be told apart", (kind) => {
+    const reps = run(new RepDetector(splitSquat), lungeMove(kind));
+    expect(reps.map((r) => r.counted)).toEqual([true, true]);
   });
 
   it('says which lunge the set is when someone squats instead', () => {
@@ -218,7 +225,7 @@ describe('jumping feet', () => {
   it('counts jumping jacks whose feet jump apart and back', () => {
     const reps = run(new RepDetector(jumpingJack), sweep([10, 170, 10, 170, 10, 170, 10], jacks, 10));
     expect(reps.filter((r) => r.counted)).toHaveLength(3);
-    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/camera moved/i);
+    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/moved off your spot/i);
   });
 
   it('counts step jacks whose foot steps out and back', () => {

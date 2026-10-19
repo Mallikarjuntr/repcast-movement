@@ -26,6 +26,8 @@ export interface FigureOptions {
   ankleShift?: { left?: [number, number]; right?: [number, number] };
 }
 
+/** Ankle height in the picture: room below for a lunge's back foot, which a real camera keeps in frame. */
+const FLOOR = 0.8;
 const SHIN = 0.2;
 const THIGH = 0.2;
 const TORSO = 0.25;
@@ -55,11 +57,11 @@ export function figure(t: number, opts: FigureOptions): PoseFrame {
   for (const [side, sign] of [['left', -1], ['right', 1]] as const) {
     const ankleX = 0.5 + sign * feetHalf;
     const kneeX = 0.5 + sign * kneeHalf;
-    const kneeY = 0.9 - SHIN;
+    const kneeY = FLOOR - SHIN;
     // The thigh rotates toward the camera (z) and is foreshortened vertically.
     const hipY = kneeY - THIGH * Math.cos(fold);
     const hipZ = -THIGH * Math.sin(fold);
-    set(`${side}Ankle`, ankleX, 0.9, 0, opts.hideAnkles ? 0.1 : 0.99);
+    set(`${side}Ankle`, ankleX, FLOOR, 0, opts.hideAnkles ? 0.1 : 0.99);
     set(`${side}Knee`, kneeX, kneeY, 0);
     set(`${side}Hip`, 0.5 + sign * HIP_HALF_WIDTH, hipY, hipZ);
     const shoulderX = 0.5 + sign * 0.1;

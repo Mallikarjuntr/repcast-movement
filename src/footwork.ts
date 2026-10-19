@@ -73,7 +73,7 @@ export function feetAnchor(standing: readonly PoseFrame[], minVisibility: number
   const seenBoth = standing.filter((f) => isVisible(f, 'leftAnkle', minVisibility) && isVisible(f, 'rightAnkle', minVisibility));
   const frames = [...seenBoth].sort((a, b) => gap(a) - gap(b)).slice(0, Math.max(3, Math.ceil(seenBoth.length / 2)));
   const ankles: [Point[], Point[]] = [[], []];
-  const toes: Point[] = [];
+  const toes: [Point[], Point[]] = [[], []];
   const legs: number[] = [];
   let frontish = 0;
   let sideOn = 0;
@@ -84,7 +84,7 @@ export function feetAnchor(standing: readonly PoseFrame[], minVisibility: number
     SIDES.forEach((side, i) => {
       const ankle = imagePoint(frame, `${side}Ankle`);
       ankles[i]!.push(ankle);
-      if (seen(`${side}Heel`) && seen(`${side}Toe`)) toes.push(sub(imagePoint(frame, `${side}Toe`), imagePoint(frame, `${side}Heel`)));
+      if (seen(`${side}Heel`) && seen(`${side}Toe`)) toes[i]!.push(sub(imagePoint(frame, `${side}Toe`), imagePoint(frame, `${side}Heel`)));
       if (seen(`${side}Hip`)) legs.push(len(sub(ankle, imagePoint(frame, `${side}Hip`))));
     });
     const view = isSideOn(frame, minVisibility);
@@ -96,7 +96,10 @@ export function feetAnchor(standing: readonly PoseFrame[], minVisibility: number
   if (ankles[0].length === 0 || legs.length === 0) return null;
   const leg = median(legs);
   const at = (pts: Point[]): Point => ({ x: median(pts.map((p) => p.x)), y: median(pts.map((p) => p.y)) });
-  const toe = toes.length ? at(toes) : { x: 0, y: 0 };
+  // Both feet averaged: toes turned out (squats, and sumo squats far more) point apart, and either
+  // foot alone would make the sideways gap between the feet read as one foot ahead of the other.
+  const eachFoot = toes.filter((t) => t.length > 0).map(at);
+  const toe = eachFoot.length ? { x: eachFoot.reduce((n, p) => n + p.x, 0) / eachFoot.length, y: eachFoot.reduce((n, p) => n + p.y, 0) / eachFoot.length } : { x: 0, y: 0 };
   // Seen from behind, forward is away from the camera: up the picture.
   const forward = len(toe) / leg >= FORESHORTENED_FOOT ? { x: toe.x / len(toe), y: toe.y / len(toe) } : { x: 0, y: facing < 0 ? -1 : 1 };
   const feet: [Point, Point] = [at(ankles[0]), at(ankles[1])];
@@ -140,7 +143,7 @@ export function feetFrame(anchor: FeetAnchor, frame: PoseFrame, minVisibility: n
 }
 
 /** What a rep's feet did, as one of the patterns the moves are told apart by. */
-export type FootPattern = 'planted' | 'forward' | 'back' | 'across' | 'unknown';
+export type FootPattern = 'planted' | 'forward' | 'back' | 'across' | 'shifted' | 'unknown';
 
 /**
  * A foot that moved at least this far (over leg length) stepped. Measured on real video: squats
@@ -161,6 +164,13 @@ export const AHEAD = 0.18;
 export const ACROSS = 0.4;
 /** A start stance with one foot this far in front of the other is a split stance. */
 export const SPLIT = 0.35;
+/**
+ * Both feet moving at least this far means the whole body moved (walking about between reps, or
+ * coming closer to the phone), not one foot stepping: a phone test read 0.38–0.52 for the foot that
+ * moved least when the person moved about, against 0.02–0.25 in most lunges (a few read up to 0.41:
+ * those reps then go unjudged on footwork rather than risk calling a squat a lunge).
+ */
+export const SHIFTED = 0.3;
 /** A foot that moved at least this far outward stepped out (jacks); under half of it, it stayed. */
 export const OUT = 0.12;
 
@@ -176,6 +186,7 @@ export interface FeetPicture {
 /** The rep's footwork from its medians: forward, back, back and across, planted, or can't tell. */
 export function footPattern(feet: FeetPicture | null): FootPattern {
   if (!feet) return 'unknown';
+  if (feet.still >= SHIFTED) return 'shifted';
   if (feet.step < PLANTED) return 'planted';
   if (feet.step < STEP) return 'unknown';
   if (feet.ahead >= AHEAD) return 'forward';

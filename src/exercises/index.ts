@@ -1,5 +1,5 @@
 import type { ExerciseDefinition, HoldExercise, RepExercise } from '../definitions.js';
-import { squat } from './squat.js';
+import { lungeInSquatSet, squat } from './squat.js';
 
 export { squat };
 
@@ -41,6 +41,7 @@ export const lunge: RepExercise = {
  */
 export const halfSquat: RepExercise = {
   ...squat,
+  ...lungeInSquatSet('half squats'),
   id: 'half-squat',
   name: 'Half squat',
   thresholds: { top: 160, bottom: 148 },
@@ -55,6 +56,7 @@ export const halfSquat: RepExercise = {
 /** Feet wide, toes out; the knees still track over the toes. */
 export const sumoSquat: RepExercise = {
   ...squat,
+  ...lungeInSquatSet('sumo squats', 'feet wide'),
   id: 'sumo-squat',
   name: 'Sumo squat',
   // Ordinary squats measured 0.8–1.2 on real video, a sumo stance about 2.2 (docs/TESTING.md).
@@ -100,7 +102,7 @@ export const reverseLunge: RepExercise = {
   ...lunge,
   id: 'reverse-lunge',
   name: 'Reverse lunge',
-  stance: { expect: 'staggered', cue: 'Step one foot back — that was a squat, this set is lunges' },
+  stance: { expect: 'staggered', cue: 'Step one foot back — that was a squat, this set is reverse lunges' },
   footwork: {
     expect: 'back',
     cues: {
@@ -118,14 +120,13 @@ export const splitSquat: RepExercise = {
   name: 'Split squat',
   plantedFeet: true,
   stance: { expect: 'staggered', cue: 'Keep one foot forward and one back — this set is split squats' },
+  // Only feet side by side are refused. A split squat's back heel lifts and rolls, and side-on the
+  // pose model loses track of the far ankle: real split squats read "steps" of 0.15–0.63 of leg
+  // length, the same as real side-on lunges (0.15–0.33), so a lunge in this set can't honestly be
+  // told apart and isn't called one. Depth and form are still judged.
   footwork: {
     expect: 'planted',
-    cues: {
-      squat: 'Keep one foot forward and one back — this set is split squats',
-      forward: "Keep your feet where they are — that was a lunge, this set is split squats",
-      back: "Keep your feet where they are — that was a lunge, this set is split squats",
-      across: "Keep your feet where they are — that was a lunge, this set is split squats",
-    },
+    cues: { squat: 'Keep one foot forward and one back — this set is split squats' },
   },
 };
 
@@ -134,6 +135,14 @@ export const curtsyLunge: RepExercise = {
   ...lunge,
   id: 'curtsy-lunge',
   name: 'Curtsy lunge',
+  // The crossed back leg keeps the front knee less bent than in a lunge: a phone test's curtsies
+  // reached 88–121°, so the lunge's 100° target flagged nearly every one.
+  depth: {
+    target: 115,
+    cue: 'Sink a little lower — back knee towards the floor',
+    noRepAbove: 130,
+    noRepCue: "Not low enough — that one doesn't count",
+  },
   stance: { expect: 'staggered', cue: 'Step one foot back and across — this set is curtsy lunges' },
   // Back and across, behind the front leg. Side-on the crossing can't be seen, so a step back counts.
   footwork: {

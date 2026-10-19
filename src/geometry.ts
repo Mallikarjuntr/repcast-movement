@@ -15,9 +15,14 @@ export function point(frame: PoseFrame, name: PointName): Landmark | undefined {
   return frame.landmarks[POINTS[name]];
 }
 
+/**
+ * A point the camera can see: confident enough, and inside the picture. The pose model also guesses
+ * points beyond the frame edge, sometimes with fair confidence (feet below a close phone scored
+ * 0.5–0.7); judging feet from such guesses called squats lunges and blamed the phone for moving.
+ */
 export function isVisible(frame: PoseFrame, name: PointName, minVisibility = DEFAULT_MIN_VISIBILITY): boolean {
   const p = point(frame, name);
-  return p !== undefined && (p.visibility ?? 1) >= minVisibility;
+  return p !== undefined && (p.visibility ?? 1) >= minVisibility && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1;
 }
 
 /** Image-space position with x scaled by the aspect ratio, so distances are in a uniform unit. */

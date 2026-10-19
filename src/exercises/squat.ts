@@ -1,5 +1,11 @@
 import type { RepExercise } from '../definitions.js';
 
+/** What the coach says when a lunge turns up in a squat-family set, naming that set. */
+export function lungeInSquatSet(setName: string, feet = 'feet side by side'): Pick<RepExercise, 'stance' | 'footwork'> {
+  const cue = `That's a lunge — this set is ${setName}, ${feet}`;
+  return { stance: { expect: 'square', cue }, footwork: { expect: 'squat', cues: { planted: cue, forward: cue, back: cue, across: cue } } };
+}
+
 /**
  * Thresholds tuned on real phone recordings: full squats bottom out around 50–65° at the knee,
  * half squats around 105–125°.
@@ -19,16 +25,7 @@ export const squat: RepExercise = {
   minRepMs: 700,
   maxRepMs: 8000,
   upright: { maxTilt: 30 },
-  stance: { expect: 'square', cue: "That's a lunge — this set is squats, feet side by side" },
-  footwork: {
-    expect: 'squat',
-    cues: {
-      planted: "That's a lunge — this set is squats, feet side by side",
-      forward: "That's a lunge — this set is squats, feet side by side",
-      back: "That's a lunge — this set is squats, feet side by side",
-      across: "That's a lunge — this set is squats, feet side by side",
-    },
-  },
+  ...lungeInSquatSet('squats'),
   checks: [
     { id: 'knees-caving', cue: 'Push your knees out', warn: 0.75, fail: 0.55, failCue: "Knees caved in too far — that one doesn't count" },
     { id: 'chest-dropping', cue: 'Keep your chest up', warn: 55, fail: 72, failCue: "Chest dropped too far — that one doesn't count" },

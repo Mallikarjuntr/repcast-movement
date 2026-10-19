@@ -95,6 +95,22 @@ describe('RepDetector with the squat definition', () => {
     expect(counted).toBe(2);
   });
 
+  it("ignores the model's guesses at feet below the picture", () => {
+    // Phone close up (2026-10-19 office clip): the feet are off the bottom edge, yet the model places
+    // them there, wandering frame to frame, with confidence 0.5–0.7. They must not judge the rep.
+    const frames = motion([175, 75, 175, 75, 175], 15).map((f, i) => ({
+      ...f,
+      // One guessed foot slides with depth, the other stays: from real feet that would be a lunge step.
+      landmarks: f.landmarks.map((p, j) => {
+        const d = Math.abs(Math.sin((Math.PI * i) / 15));
+        return j === 27 ? { ...p, x: p.x - 0.05 * d, y: 1.04 + 0.15 * d, visibility: 0.65 } : j === 28 ? { ...p, y: 1.04, visibility: 0.65 } : p;
+      }),
+    }));
+    const { detector, reps } = run(frames);
+    expect(detector.count).toBe(2);
+    for (const rep of reps) expect(rep.cues.join(' ')).not.toMatch(/lunge|moved/i);
+  });
+
   it('asks to push the knees out when they drift in a little', () => {
     const [rep] = run([...stand(0), ...squatRep(65, 400, (d) => ({ kneeWidthRatio: 1 - 0.32 * d }))]).reps;
     expect(rep).toMatchObject({ counted: true, verdict: 'fix' });
@@ -134,7 +150,7 @@ describe('pose model glitches', () => {
     const frames = [...standSide(0), ...squatRep(80, 400, () => side), ...squatRep(80, 1900, () => side), ...standSide(3400)].map(sway);
     const { reps, detector } = run(frames);
     expect(detector.count).toBe(2);
-    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/camera moved/i);
+    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/moved off your spot/i);
   });
 
   it('ignores the left and right ankles swapping places, as seen facing the camera', () => {
@@ -147,7 +163,7 @@ describe('pose model glitches', () => {
     const frames = [...stand(0), ...squatRep(80, 400), ...squatRep(80, 1900), ...stand(3400)].map(swap);
     const { reps, detector } = run(frames);
     expect(detector.count).toBe(2);
-    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/camera moved/i);
+    expect(reps.flatMap((r) => r.cues).join(' ')).not.toMatch(/moved off your spot/i);
   });
 });
 
@@ -167,7 +183,7 @@ describe('the honest spotter: things that must not count', () => {
     frames.push(...stand(1700));
     const { reps, detector } = run(frames);
     expect(detector.count).toBe(0);
-    for (const rep of reps) expect(rep.cues[0]).toMatch(/camera moved/i);
+    for (const rep of reps) expect(rep.cues[0]).toMatch(/moved off your spot/i);
   });
 
   it("doesn't count lunges during a squat set", () => {

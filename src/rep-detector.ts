@@ -25,7 +25,7 @@ const STANDING_MARGIN = 10;
 /** Upright frames remembered to learn the standing angle (about 5 s at 15–19 fps). */
 const STANDING_WINDOW = 90;
 /** Standing frames averaged for the feet's starting position, so one jittery frame can't skew it. */
-const ANCHOR_FRAMES = 8;
+const ANCHOR_FRAMES = 4;
 /** Standing time looked back over for where the feet started a rep. */
 const FEET_ANCHOR_MS = 1500;
 /** After the legs straighten, how long the torso may take to come upright before the rep is judged. */
@@ -37,6 +37,8 @@ const STAGGERED_VOTE = 0.35;
  * made a whole squat a lunge.
  */
 const MIN_STAGGERED_FRAMES = 3;
+/** When a planted move's base drifts (see cameraMoved): the person or the phone moved. */
+export const MOVED_CUE = 'You moved off your spot — stay in one place for each rep, and keep the phone still';
 /** Frame gap the smoothing factor is given for (15 frames a second). */
 const REFERENCE_FRAME_MS = 1000 / 15;
 /** Keep at least this gap between the top and bottom lines, so wobbles never count. */
@@ -318,7 +320,8 @@ export class RepDetector {
     const { depth, stance: stanceRule } = this.exercise;
     const frame = this.lowestFrame;
 
-    if (this.exercise.plantedFeet !== false && this.cameraMoved()) noRep.push('The camera moved — keep the phone still');
+    // Usually the person moved (walking about, coming closer to the phone), sometimes the phone: say both.
+    if (this.exercise.plantedFeet !== false && this.cameraMoved()) noRep.push(MOVED_CUE);
     if (!endedStanding) noRep.push(this.exercise.lying ? 'Stay down in position for the whole rep' : 'Finish each rep standing tall');
 
     const width = this.exercise.width;
@@ -333,15 +336,20 @@ export class RepDetector {
     const feet = this.feetSummary();
     const pattern = footPattern(feet);
     const footRule = this.exercise.footwork;
-    if (footRule && feet) {
+    if (footRule && feet && pattern === 'shifted') {
+      // The whole body moved: not a step, so neither a lunge nor a squat can be told. Planted moves
+      // already say "stay on your spot" through the drift check above.
+    } else if (footRule && feet) {
       // The feet are the better witness: a foot that stepped settles lunge against squat. Planted
       // feet are a split stance if they started one in front of the other; for split squats the
       // knee heights may say so too (facing the camera the split is foreshortened), but squats only
       // trust the feet, as the knee gap misread real squats as lunges. A step whose direction isn't
       // clear is still a step: a lunge of some kind, never a squat or split squat.
-      const split = feet.split >= SPLIT || (footRule.expect !== 'squat' && kneesStaggered === true);
+      // Squat sets only call a lunge when a foot stepped: the split-stance reading is unreliable at an
+      // angle (planted sumo squats at 45° read 0.44–0.46, squats and goblet squats up to 0.32).
+      const split = footRule.expect !== 'squat' && (feet.split >= SPLIT || kneesStaggered === true);
       const stepped = pattern === 'unknown' && feet.step >= STEP;
-      const seen: FootKey | null = pattern === 'planted' ? (split ? 'planted' : 'squat') : pattern === 'unknown' ? null : pattern;
+      const seen: FootKey | null = pattern === 'planted' ? (split ? 'planted' : 'squat') : pattern === 'unknown' || pattern === 'shifted' ? null : pattern;
       if (seen) {
         const ok = seen === footRule.expect || (footRule.expect === 'back' && seen === 'across') || (footRule.expect === 'across' && seen === 'back' && feet.across === null);
         const cue = footRule.cues[seen];
@@ -350,7 +358,9 @@ export class RepDetector {
         const cue = footRule.cues.forward ?? footRule.cues.back;
         if (cue) noRep.push(cue);
       }
-    } else if (stanceRule && kneesStaggered !== null) {
+    } else if (stanceRule && kneesStaggered !== null && footRule?.expect !== 'squat') {
+      // Only lunges fall back to the knee heights when the feet can't be seen. Squats don't: with
+      // half the body in view (feet cut off) the knee gap called real squats lunges.
       if ((kneesStaggered ? 'staggered' : 'square') !== stanceRule.expect) noRep.push(stanceRule.cue);
     }
 
