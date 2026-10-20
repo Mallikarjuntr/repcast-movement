@@ -167,7 +167,7 @@ describe('pose model glitches', () => {
   });
 });
 
-describe('the honest spotter: things that must not count', () => {
+describe('the honest coach: things that must not count', () => {
   it('never counts a person lying down, however the knees move', () => {
     const lying = motion([175, 70, 175, 70, 175, 70, 175], 15, { lying: true });
     expect(run(lying).reps).toHaveLength(0);
