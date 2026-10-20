@@ -1,4 +1,6 @@
-# spotter-movement
+# repcast-movement
+
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white) ![Vitest: 72 tests](https://img.shields.io/badge/Vitest-72_tests-2C2C2C?logo=vitest&logoColor=00FF74) ![MediaPipe Pose](https://img.shields.io/badge/works_with-MediaPipe_Pose-0097A7?logo=mediapipe&logoColor=white) ![License: MIT](https://img.shields.io/badge/License-MIT-3DA639?logo=opensourceinitiative&logoColor=white)
 
 An open-source movement engine that turns body pose landmarks (for example from [MediaPipe Pose](https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker)) into **reps**, **holds** and **form feedback**.
 
@@ -11,7 +13,7 @@ Every exercise is built from two primitives:
 
 Exercises are **plain data**, so adding a new one needs no new code.
 
-### An honest spotter
+### An honest coach
 
 Every rep attempt gets a verdict instead of a blind count:
 
@@ -38,7 +40,7 @@ Smoothing is set for 15 frames a second and speeds up on slower phones, so a pho
 
 ### Wherever the phone is
 
-People prop their phone wherever it fits, so the engine is checked from the front, at 45° and side-on, on real recordings and on a rendered 3D trainer seen from all three angles (see `docs/TESTING.md` §9 in [spotter-tv-app](https://github.com/Mallikarjuntr/spotter-tv-app)). That found and fixed five view problems, each with a test here:
+People prop their phone wherever it fits, so the engine is checked from the front, at 45° and side-on, on real recordings and on a rendered 3D trainer seen from all three angles (see `docs/TESTING.md` §9 in [repcast-tv-app](https://github.com/Mallikarjuntr/repcast-tv-app)). That found and fixed five view problems, each with a test here:
 
 - Jumping feet in a jumping jack read as "the camera moved".
 - Facing the camera, the pose model swaps left and right ankles for a frame; that read as "the camera moved".
@@ -49,13 +51,13 @@ People prop their phone wherever it fits, so the engine is checked from the fron
 ## Install
 
 ```bash
-npm install github:Mallikarjuntr/spotter-movement
+npm install github:Mallikarjuntr/repcast-movement
 ```
 
 ## Use
 
 ```ts
-import { RepDetector, squat } from 'spotter-movement';
+import { RepDetector, squat } from 'repcast-movement';
 
 const detector = new RepDetector(squat);
 
@@ -75,7 +77,7 @@ if (update.rep) {
 Holds work the same way:
 
 ```ts
-import { HoldDetector, plank } from 'spotter-movement';
+import { HoldDetector, plank } from 'repcast-movement';
 
 const hold = new HoldDetector(plank);
 const { holding, heldMs, completed, offTarget, faults, wobble } = hold.update(frame);
@@ -102,7 +104,7 @@ const { holding, heldMs, completed, offTarget, faults, wobble } = hold.update(fr
 ## Define your own
 
 ```ts
-import type { RepExercise } from 'spotter-movement';
+import type { RepExercise } from 'repcast-movement';
 
 export const sitToStand: RepExercise = {
   id: 'sit-to-stand',
