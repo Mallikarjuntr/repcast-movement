@@ -165,6 +165,11 @@ export const ACROSS = 0.4;
 /** A start stance with one foot this far in front of the other is a split stance. */
 export const SPLIT = 0.35;
 /**
+ * A start stance this far split is one even a squat set can trust: planted squats and sumo squats at
+ * 45° read up to 0.46, side-on split squats in our gym clips 0.72–0.85 (docs/TESTING.md §13).
+ */
+export const CLEAR_SPLIT = 0.6;
+/**
  * Both feet moving at least this far means the whole body moved (walking about between reps, or
  * coming closer to the phone), not one foot stepping: a phone test read 0.38–0.52 for the foot that
  * moved least when the person moved about, against 0.02–0.25 in most lunges (a few read up to 0.41:

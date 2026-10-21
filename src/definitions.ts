@@ -75,9 +75,10 @@ export interface RepExercise {
    * What the feet do during a rep, from where they started: `squat` (planted side by side),
    * `planted` (planted in a split stance), or one foot stepping `forward`, `back`, or back and
    * `across` (curtsy). `cues` say what to do when the feet did something else; a rep whose footwork
-   * can't be seen clearly keeps the benefit of the doubt.
+   * can't be seen clearly keeps the benefit of the doubt. `splitCue` replaces a stepping cue when the
+   * feet already stood clearly split before the rep: that was a split squat, not a lunge.
    */
-  footwork?: { expect: FootKey; cues: Partial<Record<FootKey, string>> };
+  footwork?: { expect: FootKey; cues: Partial<Record<FootKey, string>>; splitCue?: string };
   /** Jacks: how many feet step out as the arms go up (1 for step jacks, 2 for jumping jacks); `cues` by the number seen. */
   feetOut?: { expect: 1 | 2; cues: Partial<Record<0 | 1 | 2, string>> };
   /**

@@ -1,6 +1,6 @@
 import { gradeCheck, type CheckId, type Severity } from './checks.js';
 import type { RepExercise } from './definitions.js';
-import { feetAnchor, feetFrame, feetOut, footPattern, SPLIT, STEP, type FeetAnchor, type FeetFrame } from './footwork.js';
+import { CLEAR_SPLIT, feetAnchor, feetFrame, feetOut, footPattern, SPLIT, STEP, type FeetAnchor, type FeetFrame } from './footwork.js';
 import type { FootKey } from './definitions.js';
 import { DEFAULT_MIN_VISIBILITY, distance2d, imagePoint, isVisible, midpoint } from './geometry.js';
 import { SIDES, type PointName } from './landmarks.js';
@@ -349,13 +349,16 @@ export class RepDetector {
       // angle (planted sumo squats at 45° read 0.44–0.46, squats and goblet squats up to 0.32).
       const split = footRule.expect !== 'squat' && (feet.split >= SPLIT || kneesStaggered === true);
       const stepped = pattern === 'unknown' && feet.step >= STEP;
+      // Feet that already stood clearly split didn't step into a lunge: in a squat set that was a
+      // split squat (side-on, its feet seem to move as the legs cross in the picture).
+      const splitCue = footRule.expect === 'squat' && feet.split >= CLEAR_SPLIT ? footRule.splitCue : undefined;
       const seen: FootKey | null = pattern === 'planted' ? (split ? 'planted' : 'squat') : pattern === 'unknown' || pattern === 'shifted' ? null : pattern;
       if (seen) {
         const ok = seen === footRule.expect || (footRule.expect === 'back' && seen === 'across') || (footRule.expect === 'across' && seen === 'back' && feet.across === null);
-        const cue = footRule.cues[seen];
+        const cue = seen === 'squat' ? footRule.cues[seen] : (splitCue ?? footRule.cues[seen]);
         if (!ok && cue) noRep.push(cue);
       } else if (stepped && (footRule.expect === 'squat' || footRule.expect === 'planted')) {
-        const cue = footRule.cues.forward ?? footRule.cues.back;
+        const cue = splitCue ?? footRule.cues.forward ?? footRule.cues.back;
         if (cue) noRep.push(cue);
       }
     } else if (stanceRule && kneesStaggered !== null && footRule?.expect !== 'squat') {

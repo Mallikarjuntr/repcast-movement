@@ -149,7 +149,7 @@ describe('sumo squat', () => {
  * steps away and behind the left), split (feet stay one forward, one back), or squat (feet stay side
  * by side). The back knee drops towards the floor in all but the squat.
  */
-function lungeMove(kind: 'forward' | 'back' | 'across' | 'split' | 'squat'): PoseFrame[] {
+function lungeMove(kind: 'forward' | 'back' | 'across' | 'split' | 'wide-split' | 'squat'): PoseFrame[] {
   // Stand, two reps with a moment standing between them (as people do), stand.
   const knees = [175, 175, 175, 175, 175, 175, 175, 175];
   for (let rep = 0; rep < 2; rep++) {
@@ -167,6 +167,9 @@ function lungeMove(kind: 'forward' | 'back' | 'across' | 'split' | 'squat'): Pos
       back: { right: [0, plant - step] },
       across: { right: [-0.2 * Math.min(1, (175 - knee) / 30), plant - step] },
       split: { left: [0, 0.1], right: [0, plant - 0.1] },
+      // A long split stance from the start, the back foot seeming to slide as the knee drops (as
+      // side-on split squats look on camera).
+      'wide-split': { left: [0, 0.18], right: [0, plant - 0.18 - step] },
     };
     return figure(t, { knee, lungeGap: drop, ankleShift: shift[kind] });
   });
@@ -201,6 +204,12 @@ describe('lunge variations', () => {
   it("doesn't call planted feet a lunge in a squat set: the split-stance reading is unreliable at an angle", () => {
     const reps = run(new RepDetector(squat), lungeMove('split'));
     expect(reps.every((r) => !r.cues.some((c) => /lunge/i.test(c)))).toBe(true);
+  });
+
+  it('names a split squat in a squat set when the feet stood clearly split from the start', () => {
+    const reps = run(new RepDetector(squat), lungeMove('wide-split'));
+    expect(reps.map((r) => r.counted)).toEqual([false, false]);
+    expect(reps[0]!.cues[0]).toMatch(/that's a split squat — this set is squats/i);
   });
 
   it.each(['forward', 'back'] as const)("doesn't call a %s lunge in a split-squat set: side-on the two can't be told apart", (kind) => {

@@ -1,9 +1,10 @@
 import type { RepExercise } from '../definitions.js';
 
-/** What the coach says when a lunge turns up in a squat-family set, naming that set. */
+/** What the coach says when a lunge (or a split squat) turns up in a squat-family set, naming that set. */
 export function lungeInSquatSet(setName: string, feet = 'feet side by side'): Pick<RepExercise, 'stance' | 'footwork'> {
   const cue = `That's a lunge — this set is ${setName}, ${feet}`;
-  return { stance: { expect: 'square', cue }, footwork: { expect: 'squat', cues: { planted: cue, forward: cue, back: cue, across: cue } } };
+  const splitCue = `That's a split squat — this set is ${setName}, ${feet}`;
+  return { stance: { expect: 'square', cue }, footwork: { expect: 'squat', cues: { planted: cue, forward: cue, back: cue, across: cue }, splitCue } };
 }
 
 /**
