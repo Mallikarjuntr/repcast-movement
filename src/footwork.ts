@@ -166,7 +166,7 @@ export const ACROSS = 0.4;
 export const SPLIT = 0.35;
 /**
  * A start stance this far split is one even a squat set can trust: planted squats and sumo squats at
- * 45° read up to 0.46, side-on split squats in our gym clips 0.72–0.85 (docs/TESTING.md §13).
+ * 45° read up to 0.46, side-on split squats in our gym clips 0.72–0.85 (repcast-tv-app docs/TESTING.md §14).
  */
 export const CLEAR_SPLIT = 0.6;
 /**
